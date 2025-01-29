@@ -1,0 +1,11 @@
+[package]
+name = "libpacstall"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+pest = "2.7.15"
+pest_consume = { git = "https://github.com/Nadrieril/pest_consume.git" }
+pest_derive = "2.7.15"
+thiserror = "2.0.11"
+url = "2.5.4"
