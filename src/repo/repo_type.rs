@@ -55,7 +55,7 @@ pub enum SourceUrlError {
 }
 
 /// List of available repos that pacstall supports.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum RepoURL {
     /// GitHub.
     GitHub(GitHubURL),

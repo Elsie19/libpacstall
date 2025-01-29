@@ -10,14 +10,14 @@ use crate::repo::repo_type::PackageRepo;
 use super::repo_type::{GitHubURL, RepoURL};
 
 /// List of repositories on the system.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct PacstallRepo {
     /// List of repos.
     pub list: Vec<RepoEntry>,
 }
 
 /// Repository entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RepoEntry {
     /// URL of repository.
     pub url: RepoURL,
@@ -64,6 +64,8 @@ impl Display for PacstallRepo {
 }
 
 impl Default for PacstallRepo {
+    /// Generates default implementation, which points to the [pacstall/pacstall-programs](https://github.com/pacstall/pacstall-programs) repository
+    /// with an alias of `pacstall`.
     fn default() -> Self {
         Self {
             list: vec![RepoEntry {
@@ -89,6 +91,10 @@ impl Display for RepoEntry {
 }
 
 impl PacstallRepo {
+    /// Convinience function to parse a path.
+    ///
+    /// # Errors
+    /// Will return [`RepoFileError`] if the file cannot be opened or cannot be parsed.
     pub fn open<P: AsRef<Path>>(value: P) -> Result<Self, RepoFileError> {
         let reffed = value.as_ref();
         let contents = match fs::read_to_string(reffed) {
@@ -104,7 +110,7 @@ impl FromStr for PacstallRepo {
     type Err = RepoFileError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let inputs = ParseRepoFile::parse(Rule::program, &s)?;
+        let inputs = ParseRepoFile::parse(Rule::program, s)?;
 
         let input = inputs.single()?;
 
@@ -116,6 +122,7 @@ impl FromStr for PacstallRepo {
 #[grammar_inline = r#"
 program = { SOI ~ entry ~ (NEWLINE* ~ entry)* ~ NEWLINE* ~ EOI }
 
+/// Entries are a url + whitespace + alias or simply a url.
 entry = ${ url ~ WHITESPACE+ ~ alias | url }
 
 url = ${ (ASCII_ALPHANUMERIC | ":" | "/" | "." | "-" | "_")+ }
@@ -164,5 +171,19 @@ impl ParseRepoFile {
         Ok(match_nodes!(input.into_children();
             [entry(entry).., EOI(())] => PacstallRepo { list: entry.collect() },
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_default() {
+        let text = "https://raw.githubusercontent.com/pacstall/pacstall-programs/master @pacstall";
+        assert_eq!(
+            PacstallRepo::default(),
+            PacstallRepo::try_from(vec![text]).expect("Parsing failed. Big yikes")
+        );
     }
 }

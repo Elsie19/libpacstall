@@ -58,6 +58,10 @@ impl Update {
     }
 
     /// Convinience function to open an update file.
+    ///
+    /// # Errors
+    /// Will error with [`UpdateFileError`] if the file could not be opened, is not exactly one
+    /// line, or could not be parsed.
     pub fn open<P: AsRef<Path>>(value: P) -> Result<Self, UpdateFileError> {
         let reffed = value.as_ref();
         let Ok(file) = File::open(reffed) else {
