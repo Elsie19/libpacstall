@@ -27,6 +27,11 @@ pub trait PackageRepo {
     fn raw(&self) -> String;
     /// Raw print the URL for appending paths to.
     fn search(&self) -> String;
+    /// Adding paths to raw URL.
+    fn with_path<S: AsRef<str>>(&self, path: S) -> String {
+        let as_url = Url::parse(&self.raw()).unwrap();
+        format!("{}", as_url.join(path.as_ref()).unwrap())
+    }
 }
 
 #[derive(Debug, Error, PartialEq)]

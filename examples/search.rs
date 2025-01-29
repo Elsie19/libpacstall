@@ -53,7 +53,7 @@ fn main() {
                         .first()
                         .expect("How did a package get in here without being in a repo")
                         .url
-                        .pretty(),
+                        .with_path(format!("packages/{}/{}.pacscript", pkg.0, pkg.0)),
                     "{}",
                     pkg.1.first().unwrap().url.search()
                 )
