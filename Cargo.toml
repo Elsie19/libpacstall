@@ -9,3 +9,18 @@ pest_consume = { git = "https://github.com/Nadrieril/pest_consume.git" }
 pest_derive = "2.7.15"
 thiserror = "2.0.11"
 url = "2.5.4"
+
+[dev-dependencies]
+reqwest = { version = "0.12.12", features = ["blocking"] }
+
+[[example]]
+name = "search"
+doc-scrape-examples = true
+
+[[example]]
+name = "parsing_pacstallrepo"
+doc-scrape-examples = true
+
+[[example]]
+name = "parsing_update"
+doc-scrape-examples = true

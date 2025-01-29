@@ -47,7 +47,7 @@ pub enum SourceUrlError {
 }
 
 /// List of available repos that pacstall supports.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum RepoURL {
     /// GitHub.
     GitHub(GitHubURL),
@@ -60,7 +60,7 @@ pub enum RepoURL {
 }
 
 /// GitHub URLs.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct GitHubURL {
     pub username: String,
     pub repo: String,
@@ -68,7 +68,7 @@ pub struct GitHubURL {
 }
 
 /// GitLab URLs.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct GitLabURL {
     pub username: String,
     pub repo: String,
@@ -76,13 +76,13 @@ pub struct GitLabURL {
 }
 
 /// Raw paths.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct PathURL {
     pub path: PathBuf,
 }
 
 /// Raw URLs.
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct RawURL {
     pub url: Url,
 }

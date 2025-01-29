@@ -1,13 +1,13 @@
 //! Manage pacstall repos.
 
-use std::{fmt::Display, fs, path::Path};
+use std::{fmt::Display, fs, path::Path, str::FromStr};
 
 use pest_consume::{match_nodes, Error, Parser};
 use thiserror::Error;
 
 use crate::repo::repo_type::PackageRepo;
 
-use super::repo_type::{GitHubURL, RepoURL};
+use super::repo_type::{GitHubURL, RepoURL, SourceUrlError};
 
 /// List of repositories on the system.
 #[derive(Debug)]
@@ -17,7 +17,7 @@ pub struct PacstallRepo {
 }
 
 /// Repository entry.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RepoEntry {
     /// URL of repository.
     pub url: RepoURL,
@@ -32,6 +32,21 @@ pub enum RepoFileError {
     IoError(#[from] std::io::Error),
     #[error("Pest parsing error: {0}")]
     Pest(#[from] pest::error::Error<Rule>),
+}
+
+impl Iterator for PacstallRepo {
+    type Item = RepoEntry;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.list.pop()
+    }
+}
+
+impl TryFrom<Vec<&str>> for PacstallRepo {
+    type Error = RepoFileError;
+    fn try_from(value: Vec<&str>) -> Result<Self, Self::Error> {
+        PacstallRepo::from_str(&value.join(" "))
+    }
 }
 
 impl Display for PacstallRepo {
@@ -81,7 +96,15 @@ impl PacstallRepo {
             Err(e) => return Err(RepoFileError::IoError(e)),
         };
 
-        let inputs = ParseRepoFile::parse(Rule::program, &contents)?;
+        PacstallRepo::from_str(&contents)
+    }
+}
+
+impl FromStr for PacstallRepo {
+    type Err = RepoFileError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let inputs = ParseRepoFile::parse(Rule::program, &s)?;
 
         let input = inputs.single()?;
 

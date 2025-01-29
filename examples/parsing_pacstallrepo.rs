@@ -9,7 +9,7 @@ fn main() {
         }
     };
 
-    let custom_repos = PacstallRepo::default();
+    let custom_repos = PacstallRepo::try_from(vec!["https://pacstall.dev/ @baaa"]).unwrap();
 
     println!("{:#?}", custom_repos);
     println!("{}", custom_repos);
