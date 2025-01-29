@@ -7,7 +7,7 @@ use thiserror::Error;
 
 use crate::repo::repo_type::PackageRepo;
 
-use super::repo_type::{GitHubURL, RepoURL, SourceUrlError};
+use super::repo_type::{GitHubURL, RepoURL};
 
 /// List of repositories on the system.
 #[derive(Debug)]
