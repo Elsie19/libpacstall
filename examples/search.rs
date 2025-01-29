@@ -6,6 +6,12 @@ use libpacstall::repo::{
 };
 use reqwest::blocking;
 
+macro_rules! vte_format {
+    ($link:expr, $($arg:tt)*) => {
+        format!("\x1b]8;;{}\x1b\\{}\x1b]8;;\x1b\\", $link, format!($($arg)*))
+    };
+}
+
 fn main() {
     let repos = match PacstallRepo::open("/usr/share/pacstall/repo/pacstallrepo") {
         Ok(o) => o,
@@ -42,11 +48,15 @@ fn main() {
             println!(
                 "{} @ {}",
                 pkg.0,
-                pkg.1
-                    .first()
-                    .expect("How did a package get in here without being in a repo")
-                    .url
-                    .pretty()
+                vte_format!(
+                    pkg.1
+                        .first()
+                        .expect("How did a package get in here without being in a repo")
+                        .url
+                        .pretty(),
+                    "{}",
+                    pkg.1.first().unwrap().url.search()
+                )
             );
         }
     }

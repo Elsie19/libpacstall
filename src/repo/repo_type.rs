@@ -9,10 +9,11 @@ use url::Url;
 
 /// Implement types of repositories.
 ///
-/// Repositories must have two methods of displaying themselves:
+/// Repositories must have three methods of displaying themselves:
 ///
 /// 1. [`PackageRepo::pretty()`] (user facing url/file/whatever).
 /// 2. [`PackageRepo::raw()`] (backend facing url/file/whatever).
+/// 2. [`PackageRepo::search()`] (styled and fancy).
 ///
 /// `Raw` should be the expanded url/path to which paths can be appended to in the style of a
 /// pacstall-programs repository.
@@ -24,6 +25,8 @@ pub trait PackageRepo {
     fn pretty(&self) -> String;
     /// Raw print the URL for appending paths to.
     fn raw(&self) -> String;
+    /// Raw print the URL for appending paths to.
+    fn search(&self) -> String;
 }
 
 #[derive(Debug, Error, PartialEq)]
@@ -123,6 +126,15 @@ impl PackageRepo for RepoURL {
             Self::File(m) => m.pretty(),
         }
     }
+
+    fn search(&self) -> String {
+        match self {
+            Self::GitLab(m) => m.search(),
+            Self::GitHub(m) => m.search(),
+            Self::URL(m) => m.search(),
+            Self::File(m) => m.search(),
+        }
+    }
 }
 
 impl PackageRepo for GitHubURL {
@@ -138,6 +150,10 @@ impl PackageRepo for GitHubURL {
             "https://github.com/{}/{}/blob/{}",
             self.username, self.repo, self.branch
         )
+    }
+
+    fn search(&self) -> String {
+        format!("github:{}/{}", self.username, self.repo)
     }
 }
 
@@ -214,6 +230,10 @@ impl PackageRepo for GitLabURL {
             self.username, self.repo, self.branch
         )
     }
+
+    fn search(&self) -> String {
+        format!("gitlab:{}/{}", self.username, self.repo)
+    }
 }
 
 impl FromStr for GitLabURL {
@@ -281,6 +301,10 @@ impl PackageRepo for PathURL {
     fn pretty(&self) -> String {
         format!("{}", self.path.display())
     }
+
+    fn search(&self) -> String {
+        format!("{}", self.path.display())
+    }
 }
 
 impl FromStr for PathURL {
@@ -298,6 +322,10 @@ impl PackageRepo for RawURL {
     }
 
     fn pretty(&self) -> String {
+        self.url.to_string()
+    }
+
+    fn search(&self) -> String {
         self.url.to_string()
     }
 }
