@@ -49,7 +49,10 @@ macro_rules! impl_tryfrom_update {
     };
 }
 
-/// Handles `/usr/share/pacstall/repo/update`.
+/// Handles [`/usr/share/pacstall/repo/update`](/usr/share/pacstall/repo/update) file contents.
+///
+/// This does not handle the file itself, only the format of the file. You may wish to write back
+/// this struct into the file.
 ///
 /// # Examples
 ///
@@ -65,6 +68,36 @@ macro_rules! impl_tryfrom_update {
 ///     }
 /// };
 /// ```
+///
+/// Creating an [`Update`] from a [`Path`].
+///
+/// ```
+/// # use std::path::Path;
+/// # use crate::libpacstall::repo::update::{Update, UpdateParseError};
+/// let path = Path::new("/usr/share/pacstall/repo/update");
+///
+/// let my_update = Update::try_from(path).expect("update file not in expected format");
+/// ```
+///
+/// Writing back contents.
+///
+/// ```no_run
+/// # use std::fs::OpenOptions;
+/// # use libpacstall::repo::update::Update;
+/// # use std::io::Write;
+/// #
+/// let my_update = Update::try_from("pacstall develop")?;
+///
+/// let mut file = OpenOptions::new()
+///    .write(true)
+///    .truncate(true)
+///    .open("/usr/share/pacstall/repo/update")?;
+///
+/// writeln!(file, "{}", my_update)?;
+///
+/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// ```
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(PartialEq, Eq)]
 pub struct Update {
     username: String,
@@ -100,3 +133,57 @@ impl Display for Update {
 
 impl_tryfrom_update!(file: &Path, PathBuf, &OsStr, OsString);
 impl_tryfrom_update!(direct: &str, String);
+
+impl Update {
+    /// Return targeted update username.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use crate::libpacstall::repo::update::Update;
+    /// let my_update = Update::try_from("oklopfer master").unwrap();
+    /// assert_eq!(my_update.username(), "oklopfer");
+    /// ```
+    pub fn username(&self) -> &str {
+        &self.username
+    }
+
+    /// Return targeted update branch.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use crate::libpacstall::repo::update::Update;
+    /// let my_update = Update::try_from("oklopfer master").unwrap();
+    /// assert_eq!(my_update.branch(), "master");
+    /// ```
+    pub fn branch(&self) -> &str {
+        &self.branch
+    }
+
+    /// Update targeted username.
+    pub fn set_username<S: Into<String>>(&mut self, new_username: S) {
+        self.username = new_username.into();
+    }
+
+    /// Update targeted branch.
+    pub fn set_branch<S: Into<String>>(&mut self, new_branch: S) {
+        self.username = new_branch.into();
+    }
+
+    /// Copy new [`Update`] with branch as `master`.
+    pub fn to_master(&self) -> Self {
+        Self {
+            username: self.username.clone(),
+            branch: String::from("master"),
+        }
+    }
+
+    /// Copy new [`Update`] with branch as `develop`.
+    pub fn to_develop(&self) -> Self {
+        Self {
+            username: self.username.clone(),
+            branch: String::from("develop"),
+        }
+    }
+}
