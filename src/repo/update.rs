@@ -1,5 +1,4 @@
 use std::{
-    borrow::Cow,
     ffi::{OsStr, OsString},
     fmt::Display,
     io,
@@ -9,72 +8,45 @@ use std::{
 use thiserror::Error;
 
 macro_rules! impl_tryfrom_update {
-    (@parse $source:expr, Owned) => {{
-        let mut parts = $source.splitn(3, ' ');
-        let username = parts.next().ok_or(UpdateParseError::MismatchLength(0))?;
-        let branch = parts.next().ok_or(UpdateParseError::MismatchLength(1))?;
-        if parts.next().is_some() {
-            Err(UpdateParseError::MismatchLength(3))
-        } else {
-            Ok(Update {
-                username: Cow::Owned(username.to_owned()),
-                branch: Cow::Owned(branch.to_owned()),
-            })
-        }
-    }};
-
-    (@parse $source:expr, Borrowed) => {{
-        let mut parts = $source.splitn(3, ' ');
-        let username = parts.next().ok_or(UpdateParseError::MismatchLength(0))?;
-        let branch = parts.next().ok_or(UpdateParseError::MismatchLength(1))?;
-        if parts.next().is_some() {
-            Err(UpdateParseError::MismatchLength(3))
-        } else {
-            Ok(Update {
-                username: Cow::Borrowed(username),
-                branch: Cow::Borrowed(branch),
-            })
+    (@generate, $split:expr) => {{
+        let mut iter = $split;
+        match (iter.next(), iter.next(), iter.next()) {
+            (Some(u), Some(b), None) => Ok(Update {
+                username: u.to_owned(),
+                branch: b.to_owned(),
+            }),
+            (Some(_), Some(_), Some(_)) => Err(UpdateParseError::MismatchLength(3)),
+            (Some(_), None, _) => Err(UpdateParseError::MismatchLength(1)),
+            (None, ..) => Err(UpdateParseError::MismatchLength(0)),
         }
     }};
 
     (file: $($type:ty),+ $(,)?) => {
         $(
-            impl<'a> TryFrom<$type> for Update<'a> {
+            impl TryFrom<$type> for Update {
                 type Error = UpdateParseError;
 
                 fn try_from(value: $type) -> Result<Self, Self::Error> {
                     let contents = std::fs::read_to_string(value)?;
-                    impl_tryfrom_update!(@parse contents, Owned)
+
+                    impl_tryfrom_update!(@generate, contents.split(' '))
                 }
             }
         )*
     };
 
-    (direct: &str => Borrowed, $($rest:tt)*) => {
-        impl<'a> TryFrom<&'a str> for Update<'a> {
-            type Error = UpdateParseError;
+    (direct: $($type:ty),+ $(,)?) => {
+        $(
+            impl TryFrom<$type> for Update {
+                type Error = UpdateParseError;
 
-            fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-                impl_tryfrom_update!(@parse value, Borrowed)
+                fn try_from(value: $type) -> Result<Self, Self::Error> {
+
+                    impl_tryfrom_update!(@generate, value.split(' '))
+                }
             }
-        }
-
-        impl_tryfrom_update!(direct: $($rest)*);
+        )*
     };
-
-    (direct: $type:ty => Owned, $($rest:tt)*) => {
-        impl<'a> TryFrom<$type> for Update<'a> {
-            type Error = UpdateParseError;
-
-            fn try_from(value: $type) -> Result<Self, Self::Error> {
-                impl_tryfrom_update!(@parse value, Owned)
-            }
-        }
-
-        impl_tryfrom_update!(direct: $($rest)*);
-    };
-
-    (direct:) => {};
 }
 
 /// Handles [`/usr/share/pacstall/repo/update`](/usr/share/pacstall/repo/update) file contents.
@@ -127,9 +99,9 @@ macro_rules! impl_tryfrom_update {
 /// ```
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(PartialEq, Eq)]
-pub struct Update<'a> {
-    username: Cow<'a, str>,
-    branch: Cow<'a, str>,
+pub struct Update {
+    username: String,
+    branch: String,
 }
 
 /// Errors that come from parsing [`Update`].
@@ -143,26 +115,26 @@ pub enum UpdateParseError {
     MismatchLength(usize),
 }
 
-impl Default for Update<'_> {
+impl Default for Update {
     /// Defaults to `pacstall master`.
     fn default() -> Self {
         Self {
-            username: Cow::Borrowed("pacstall"),
-            branch: Cow::Borrowed("master"),
+            username: String::from("pacstall"),
+            branch: String::from("master"),
         }
     }
 }
 
-impl Display for Update<'_> {
+impl Display for Update {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {}", self.username, self.branch)
     }
 }
 
 impl_tryfrom_update!(file: &Path, PathBuf, &OsStr, OsString);
-impl_tryfrom_update!(direct: &str => Borrowed, String => Owned,);
+impl_tryfrom_update!(direct: &str, String);
 
-impl<'a> Update<'a> {
+impl Update {
     /// Return targeted update username.
     ///
     /// # Example
@@ -192,18 +164,12 @@ impl<'a> Update<'a> {
     }
 
     /// Update targeted username.
-    pub fn set_username<S>(&mut self, new_username: S)
-    where
-        S: Into<Cow<'a, str>>,
-    {
+    pub fn set_username<S: Into<String>>(&mut self, new_username: S) {
         self.username = new_username.into();
     }
 
     /// Update targeted branch.
-    pub fn set_branch<S>(&mut self, new_branch: S)
-    where
-        S: Into<Cow<'a, str>>,
-    {
+    pub fn set_branch<S: Into<String>>(&mut self, new_branch: S) {
         self.username = new_branch.into();
     }
 
@@ -212,7 +178,7 @@ impl<'a> Update<'a> {
     pub fn to_master(&self) -> Self {
         Self {
             username: self.username.clone(),
-            branch: Cow::Borrowed("master"),
+            branch: String::from("master"),
         }
     }
 
@@ -221,7 +187,7 @@ impl<'a> Update<'a> {
     pub fn to_develop(&self) -> Self {
         Self {
             username: self.username.clone(),
-            branch: Cow::Borrowed("develop"),
+            branch: String::from("develop"),
         }
     }
 }
