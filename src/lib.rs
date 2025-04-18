@@ -1,5 +1,4 @@
-//! LibPacstall is a library used for interfacing with [pacstall](https://pacstall.dev) and it's
-//! various components, in rust!
+//! Libpacstall is the underlying library used to interface with low level pacstall operations.
 
-pub mod pkg;
+/// Handles repository related operations.
 pub mod repo;
