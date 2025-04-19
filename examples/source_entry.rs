@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use libpacstall::pkg::package::{GitTarget, SourceEntry, SourceURLType};
+use libpacstall::pkg::keys::{GitTarget, SourceEntry, SourceURLType};
 use url::Url;
 
 fn main() {
