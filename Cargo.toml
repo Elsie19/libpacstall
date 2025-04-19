@@ -1,6 +1,6 @@
 [package]
 name = "libpacstall"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 authors = [
     "Elsie <hwengerstickel@pm.me>"
@@ -23,4 +23,8 @@ reqwest = { version = "0.12.15", features = ["blocking"] }
 
 [[example]]
 name = "print_packages"
+doc-scrape-examples = true
+
+[[example]]
+name = "source_entry"
 doc-scrape-examples = true
