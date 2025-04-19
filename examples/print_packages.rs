@@ -1,4 +1,9 @@
-use std::{collections::HashMap, io::Cursor};
+use clap::Parser;
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{Cursor, Read},
+};
 
 use libpacstall::local::repos::PacstallRepos;
 use reqwest::blocking;
@@ -9,19 +14,31 @@ macro_rules! vte_format {
     };
 }
 
-fn main() {
-    // This is to get around having a file with this contents, we can simply "simulate" a file with
-    // [`Cursor`].
-    let data = r#"
-    https://raw.githubusercontent.com/pacstall/pacstall-programs/master @pacstall
-    "#
-    .trim()
-    .as_bytes();
-    let cursor = Cursor::new(&data[..]);
-    // Read our contents.
-    let repos = PacstallRepos::open(cursor).expect("Could not read");
+/// Vastly simplified version of `pacstall -S`.
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// Use default repository layout.
+    ///
+    /// Useful if you do not have pacstall installed.
+    #[arg(short, long)]
+    emulate: bool,
 
-    let keyword = "neo";
+    /// Search term.
+    keyword: String,
+}
+
+fn main() -> std::io::Result<()> {
+    let args = Args::parse();
+
+    let reader: Box<dyn Read> = if args.emulate {
+        let data = b"https://raw.githubusercontent.com/pacstall/pacstall-programs/master @pacstall";
+        Box::new(Cursor::new(&data[..]))
+    } else {
+        Box::new(File::open("/usr/share/pacstall/repo/pacstallrepo")?)
+    };
+
+    let repos = PacstallRepos::open(reader).expect("Could not read");
 
     let mut pkgs: HashMap<String, PacstallRepos> = HashMap::new();
 
@@ -29,7 +46,7 @@ fn main() {
         // For every entry we have in our repo list, get the packagelist.
         let body = match blocking::get(format!("{}/packagelist", entry.url())) {
             // Get the text of it.
-            Ok(body) => body.text().expect("Could not unwrap text").to_string(),
+            Ok(body) => body.text().expect("Could not unwrap text"),
             Err(e) => {
                 eprintln!("{e}");
                 continue;
@@ -50,9 +67,9 @@ fn main() {
 
     for pkg in pkgs {
         // The actual "search" part that checks if text matches.
-        if pkg.0.contains(&keyword) {
+        if pkg.0.contains(&args.keyword) {
             println!(
-                "{} @ {}",
+                "\x1b[32m{}\x1b[0m \x1b[35m@\x1b[0m \x1b[36m{}\x1b[0m",
                 pkg.0,
                 vte_format!(
                     format!(
@@ -67,4 +84,6 @@ fn main() {
             );
         }
     }
+
+    Ok(())
 }

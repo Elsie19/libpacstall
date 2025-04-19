@@ -20,6 +20,7 @@ url = "2.5.4"
 serde = ["dep:serde", "serde/derive", "url/serde", "debversion/serde"]
 
 [dev-dependencies]
+clap = { version = "4.5.37", features = ["derive"] }
 reqwest = { version = "0.12.15", features = ["blocking"] }
 
 [[example]]
