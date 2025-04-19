@@ -1,9 +1,4 @@
-use std::{
-    ffi::{OsStr, OsString},
-    fmt::Display,
-    io,
-    path::{Path, PathBuf},
-};
+use std::{fmt::Display, io};
 
 use thiserror::Error;
 
@@ -69,7 +64,7 @@ macro_rules! impl_tryfrom_update {
 /// };
 /// ```
 ///
-/// Creating an [`Update`] from a [`Path`].
+/// Creating an [`Update`] from a [`Path`](`std::path::Path`).
 ///
 /// ```
 /// # use std::path::Path;
@@ -131,7 +126,7 @@ impl Display for Update {
     }
 }
 
-impl_tryfrom_update!(file: &Path, PathBuf, &OsStr, OsString);
+impl_tryfrom_update!(file: &std::path::Path, std::path::PathBuf, &std::ffi::OsStr, std::ffi::OsString);
 impl_tryfrom_update!(direct: &str, String);
 
 impl Update {

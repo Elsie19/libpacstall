@@ -2,6 +2,13 @@
 name = "libpacstall"
 version = "0.1.0"
 edition = "2024"
+authors = [
+    "Elsie <hwengerstickel@pm.me>"
+]
+description = "Backend API library for Pacstall"
+repository = "https://github.com/Elsie19/libpacstall"
+license = "GPL-3.0-or-later"
+keywords = ["aur", "pacstall", "package-manager", "linux", "apt"]
 
 [dependencies]
 serde = { version = "1.0.219", optional = true, features = ["derive"] }
