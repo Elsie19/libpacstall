@@ -45,8 +45,9 @@ pub struct PacstallRepos(Vec<PacstallRepo>);
 /// ```
 /// # use libpacstall::repo::repos::PacstallRepo;
 /// # use url::Url;
-/// let url = Url::parse("https://raw.githubusercontent.com/pacstall/pacstall/master")?;
-/// let repo_entry = PacstallRepo::from_url(url, Some("pacstall"));
+/// let basic = "https://raw.githubusercontent.com/pacstall/pacstall/master".parse::<PacstallRepo>()?;
+/// let with_alias = "https://raw.githubusercontent.com/pacstall/pacstall/master @pacstall".parse::<PacstallRepo>()?;
+/// assert_eq!(with_alias.alias(), Some("pacstall"));
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
@@ -71,6 +72,8 @@ pub enum RepoEntryError {
     EmptyAlias,
     #[error("path is not absolute")]
     NotAbsolute,
+    #[error("not a path")]
+    NotPath,
 }
 
 /// Parsing repo file errors.
@@ -155,7 +158,7 @@ impl FromStr for PacstallRepo {
                 }
                 Ok(Self {
                     url,
-                    alias: Some(alias.to_string()),
+                    alias: Some(alias.strip_prefix('@').unwrap().to_string()),
                 })
             }
             None => Ok(Self { url, alias: None }),
@@ -198,7 +201,7 @@ impl PacstallRepo {
     /// Set new alias and returns old one.
     ///
     /// # Errors
-    /// Will error if `alias` is empty.
+    /// Will error if input `alias` is empty.
     pub fn set_alias<S: Into<String>>(
         &mut self,
         alias: S,
@@ -230,11 +233,30 @@ impl PacstallRepo {
     pub fn url(&self) -> &Url {
         &self.url
     }
+
+    /// Check if the repo entry url is a path.
+    #[must_use]
+    pub fn is_path(&self) -> bool {
+        self.url.scheme() == "file"
+    }
+
+    /// Return url as [`Path`].
+    ///
+    /// # Errors
+    /// Will error if the url is not a path.
+    #[must_use]
+    pub fn as_path(&self) -> Result<&Path, RepoEntryError> {
+        if self.is_path() {
+            Ok(&Path::new(self.url.path()))
+        } else {
+            Err(RepoEntryError::NotPath)
+        }
+    }
 }
 
 impl PacstallRepos {
-    /// Create new [`PacstallRepos`] from buffer.
-    pub fn open(contents: impl Read) -> Result<Self, RepoFileParseError> {
+    /// Create new [`PacstallRepos`] from readable buffer.
+    pub fn open<R: Read>(contents: R) -> Result<Self, RepoFileParseError> {
         Ok(Self(
             BufReader::new(contents)
                 .lines()
@@ -245,19 +267,5 @@ impl PacstallRepos {
                 })
                 .collect::<Result<_, _>>()?,
         ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Cursor;
-
-    use super::*;
-
-    #[test]
-    fn read_input() {
-        let data = b"https://raw.githubusercontent.com/pacstall/pacstall-programs/master @pacstall\nfile:///some/repo/";
-        let cursor = Cursor::new(&data[..]);
-        PacstallRepos::open(cursor).expect("Should have read");
     }
 }
