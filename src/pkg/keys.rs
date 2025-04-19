@@ -1,6 +1,7 @@
 use core::fmt;
-use std::{fmt::Display, path::PathBuf, str::FromStr};
+use std::{cmp::Ordering, fmt::Display, path::PathBuf, str::FromStr};
 
+use debversion::Version;
 use thiserror::Error;
 use url::Url;
 
@@ -126,6 +127,99 @@ pub enum HashSumType {
     Sha1,
     Md5,
     B2,
+}
+
+/// Package version with an expected range clamp.
+#[derive(Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub struct VersionClamp {
+    cmp: Option<VerCmp>,
+    version: Version,
+}
+
+/// Version comparisons for [`Version`].
+#[derive(PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+pub enum VerCmp {
+    Eq,
+    Lt,
+    Gt,
+    Le,
+    Ge,
+}
+
+impl PartialOrd for VersionClamp {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.version.partial_cmp(&other.version)
+    }
+}
+
+impl PartialEq for VersionClamp {
+    fn eq(&self, other: &Self) -> bool {
+        if self.cmp.is_none() {
+            true
+        } else {
+            self.cmp == other.cmp && self.version == other.version
+        }
+    }
+}
+
+impl Display for VerCmp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Eq => "=",
+                Self::Lt => "<",
+                Self::Gt => ">",
+                Self::Le => "<=",
+                Self::Ge => ">=",
+            }
+        )
+    }
+}
+
+impl Display for VersionClamp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(cmp) = &self.cmp {
+            write!(f, "{}{}", cmp, self.version)
+        } else {
+            write!(f, "{}", self.version)
+        }
+    }
+}
+
+impl VersionClamp {
+    /// Make new [`VersionClamp`].
+    ///
+    /// A [`Option::None`] value for `cmp` indicates that any version provided can satisfy the
+    /// package.
+    pub fn new(cmp: Option<VerCmp>, version: Version) -> Self {
+        Self { cmp, version }
+    }
+
+    /// Check if this version can be satisfied by another version.
+    ///
+    /// Generally, if this succeeds, you shouldn't have to worry about the [`Ordering`] return
+    /// value, but if this fails, the [`Ordering`] value may be useful in error messages.
+    #[must_use]
+    pub fn satisfied_by(&self, other: &Self) -> (bool, Ordering) {
+        let order = self
+            .version
+            .partial_cmp(&other.version)
+            .expect("Should be impossible for a comparison to fail");
+        match &self.cmp {
+            Some(cmp) => match cmp {
+                VerCmp::Eq => (self.version == other.version, order),
+                VerCmp::Lt => (self.version < other.version, order),
+                VerCmp::Gt => (self.version > other.version, order),
+                VerCmp::Le => (self.version <= other.version, order),
+                VerCmp::Ge => (self.version >= other.version, order),
+            },
+            None => (true, Ordering::Equal),
+        }
+    }
 }
 
 impl IntoIterator for HashSums {
@@ -421,5 +515,15 @@ mod tests {
                 Some("914ab68d1ea6e2182897961468c59c942c77308e75c69743c026bfe40b6b2de1")
             ]
         );
+    }
+
+    #[test]
+    fn ver_compare() {
+        let first_version = VersionClamp::new(Some(VerCmp::Le), "1.2.4".parse().unwrap());
+        let second_version = VersionClamp::new(None, "1.2.5".parse().unwrap());
+        assert!(first_version < second_version);
+        assert!(first_version.satisfied_by(&second_version).0);
+        let third_version = VersionClamp::new(None, "1.0.0".parse().unwrap());
+        assert!(!first_version.satisfied_by(&third_version).0);
     }
 }

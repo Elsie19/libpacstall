@@ -1,6 +1,6 @@
 [package]
 name = "libpacstall"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2024"
 authors = [
     "Elsie <hwengerstickel@pm.me>"
@@ -11,12 +11,13 @@ license = "GPL-3.0-or-later"
 keywords = ["aur", "pacstall", "package-manager", "linux", "apt"]
 
 [dependencies]
+debversion = "0.4.4"
 serde = { version = "1.0.219", optional = true, features = ["derive"] }
 thiserror = "2.0.12"
 url = "2.5.4"
 
 [features]
-serde = ["dep:serde", "serde/derive", "url/serde"]
+serde = ["dep:serde", "serde/derive", "url/serde", "debversion/serde"]
 
 [dev-dependencies]
 reqwest = { version = "0.12.15", features = ["blocking"] }
