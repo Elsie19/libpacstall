@@ -9,8 +9,7 @@ macro_rules! vte_format {
     };
 }
 
-#[test]
-fn print_packages() {
+fn main() {
     let data = r#"
     https://raw.githubusercontent.com/pacstall/pacstall-programs/master @pacstall
     "#
