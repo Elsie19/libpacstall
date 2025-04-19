@@ -5,7 +5,7 @@ use debversion::Version;
 use thiserror::Error;
 use url::Url;
 
-/// Distro clamping.
+/// Distro clamping, useful in `incompatible`/`compatible`.
 ///
 /// # Examples
 ///
@@ -34,7 +34,7 @@ pub enum DistroClampError {
 }
 
 /// Package architectures.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum Arch {
     /// Package can be compiled on *any* system, but will only run on the compiled architecture.
@@ -50,6 +50,14 @@ pub enum Arch {
     Ppc64el,
     Riscv64,
     S390x,
+    // Arch types
+    X86_64,
+    Aarch64,
+    Arm,
+    Armv7h,
+    I686,
+    // Other
+    Other(String),
 }
 
 /// Maintainer schema.
@@ -107,6 +115,7 @@ pub enum GitTarget {
 ///
 /// # Notes
 /// This will not attempt to verify that the given sums list is compatible with the given [`HashSumType`].
+/// The caller should verify this before instantiation.
 #[derive(PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct HashSums {
@@ -303,10 +312,7 @@ impl HashSums {
 
     #[must_use]
     pub fn as_vec(&self) -> Vec<Option<&str>> {
-        self.sums
-            .iter()
-            .map(|entr| entr.as_deref())
-            .collect::<Vec<_>>()
+        self.sums.iter().map(Option::as_deref).collect::<Vec<_>>()
     }
 }
 
@@ -353,6 +359,19 @@ impl Display for SourceURLType {
 impl Default for GitTarget {
     fn default() -> Self {
         Self::HEAD
+    }
+}
+
+impl PartialEq for Arch {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Amd64, Self::X86_64) | (Self::X86_64, Self::Amd64) => true,
+            (Self::Arm64, Self::Aarch64) | (Self::Aarch64, Self::Arm64) => true,
+            (Self::Armel, Self::Arm) | (Self::Arm, Self::Armel) => true,
+            (Self::Armhf, Self::Armv7h) | (Self::Armv7h, Self::Armhf) => true,
+            (Self::I386, Self::I686) | (Self::I686, Self::I386) => true,
+            _ => self == other,
+        }
     }
 }
 
@@ -441,17 +460,10 @@ impl FromStr for DistroClamp {
 /// * `any:ver` == `any:ver`
 impl PartialEq for DistroClamp {
     fn eq(&self, other: &Self) -> bool {
-        if self.distro == other.distro {
-            match (self.version.as_ref(), other.version.as_ref()) {
-                (_, "*") | ("*", _) => true,
-                (ver, other_ver) => ver == other_ver,
-            }
-        } else {
-            match (self.distro.as_ref(), other.distro.as_ref()) {
-                (_, "*") | ("*", _) => true,
-                (ver, other_ver) => ver == other_ver,
-            }
-        }
+        let distro_match = self.distro == "*" || other.distro == "*" || self.distro == other.distro;
+        let version_match =
+            self.version == "*" || other.version == "*" || self.version == other.version;
+        distro_match && version_match
     }
 }
 
