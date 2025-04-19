@@ -259,10 +259,9 @@ impl PacstallRepo {
     ///
     /// # Errors
     /// Will error if the url is not a path.
-    #[must_use]
     pub fn as_path(&self) -> Result<&Path, RepoEntryError> {
         if self.is_path() {
-            Ok(&Path::new(self.url.path()))
+            Ok(Path::new(self.url.path()))
         } else {
             Err(RepoEntryError::NotPath)
         }
