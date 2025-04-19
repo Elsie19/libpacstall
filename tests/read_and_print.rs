@@ -1,6 +1,6 @@
 use std::io::Cursor;
 
-use libpacstall::repo::repos::PacstallRepos;
+use libpacstall::local::repos::PacstallRepos;
 
 #[test]
 fn read_and_print() {

@@ -21,7 +21,7 @@ use url::Url;
 /// # Examples
 ///
 /// ```no_run
-/// # use libpacstall::repo::repos::PacstallRepos;
+/// # use libpacstall::local::repos::PacstallRepos;
 /// # use std::path::Path;
 /// # use std::fs::File;
 /// let file = File::open(Path::new("/usr/share/pacstall/repo/pacstallrepo"))?;
@@ -43,7 +43,7 @@ pub struct PacstallRepos(Vec<PacstallRepo>);
 /// # Examples
 ///
 /// ```
-/// # use libpacstall::repo::repos::PacstallRepo;
+/// # use libpacstall::local::repos::PacstallRepo;
 /// # use url::Url;
 /// let basic = "https://raw.githubusercontent.com/pacstall/pacstall/master".parse::<PacstallRepo>()?;
 /// let with_alias = "https://raw.githubusercontent.com/pacstall/pacstall/master @pacstall".parse::<PacstallRepo>()?;
@@ -137,6 +137,21 @@ impl Default for PacstallRepo {
 impl Default for PacstallRepos {
     fn default() -> Self {
         Self(vec![PacstallRepo::default()])
+    }
+}
+
+impl From<PacstallRepo> for PacstallRepos {
+    fn from(value: PacstallRepo) -> Self {
+        Self(vec![value])
+    }
+}
+
+impl IntoIterator for PacstallRepos {
+    type Item = PacstallRepo;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 

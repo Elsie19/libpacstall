@@ -54,7 +54,7 @@ macro_rules! impl_tryfrom_update {
 /// Creating an [`Update`] from a string.
 ///
 /// ```
-/// # use crate::libpacstall::repo::update::Update;
+/// # use libpacstall::local::update::Update;
 /// let my_update = match Update::try_from("Elsie19 master") {
 ///     Ok(o) => o,
 ///     Err(e) => {
@@ -68,7 +68,7 @@ macro_rules! impl_tryfrom_update {
 ///
 /// ```
 /// # use std::path::Path;
-/// # use crate::libpacstall::repo::update::{Update, UpdateParseError};
+/// # use libpacstall::local::update::{Update, UpdateParseError};
 /// let path = Path::new("/usr/share/pacstall/repo/update");
 ///
 /// let my_update = Update::try_from(path).expect("update file not in expected format");
@@ -78,7 +78,7 @@ macro_rules! impl_tryfrom_update {
 ///
 /// ```no_run
 /// # use std::fs::OpenOptions;
-/// # use libpacstall::repo::update::Update;
+/// # use libpacstall::local::update::Update;
 /// # use std::io::Write;
 /// #
 /// let my_update = Update::try_from("pacstall develop")?;
@@ -135,7 +135,7 @@ impl Update {
     /// # Example
     ///
     /// ```
-    /// # use crate::libpacstall::repo::update::Update;
+    /// # use libpacstall::local::update::Update;
     /// let my_update = Update::try_from("oklopfer master").unwrap();
     /// assert_eq!(my_update.username(), "oklopfer");
     /// ```
@@ -149,7 +149,7 @@ impl Update {
     /// # Example
     ///
     /// ```
-    /// # use crate::libpacstall::repo::update::Update;
+    /// # use libpacstall::local::update::Update;
     /// let my_update = Update::try_from("oklopfer master").unwrap();
     /// assert_eq!(my_update.branch(), "master");
     /// ```
