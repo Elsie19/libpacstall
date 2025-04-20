@@ -55,7 +55,7 @@ pub struct PacstallRepos(Vec<PacstallRepo>);
 /// # }
 /// ```
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct PacstallRepo {
     url: Url,
     alias: Option<String>,
@@ -147,6 +147,12 @@ impl Default for PacstallRepos {
 impl From<PacstallRepo> for PacstallRepos {
     fn from(value: PacstallRepo) -> Self {
         Self(vec![value])
+    }
+}
+
+impl FromIterator<PacstallRepo> for PacstallRepos {
+    fn from_iter<T: IntoIterator<Item = PacstallRepo>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
     }
 }
 

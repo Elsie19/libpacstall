@@ -60,7 +60,7 @@ macro_rules! impl_tryfrom_update {
 ///
 /// Creating an [`Update`] from a [`Path`](`std::path::Path`).
 ///
-/// ```
+/// ```no_run
 /// # use std::path::Path;
 /// # use libpacstall::local::update::{Update, UpdateParseError};
 /// let path = Path::new("/usr/share/pacstall/repo/update");
@@ -71,10 +71,10 @@ macro_rules! impl_tryfrom_update {
 /// Writing back contents.
 ///
 /// ```no_run
-/// # use std::fs::OpenOptions;
 /// # use libpacstall::local::update::Update;
-/// # use std::io::Write;
-/// #
+/// use std::fs::OpenOptions;
+/// use std::io::Write;
+///
 /// let my_update = Update::new("pacstall", "develop").unwrap();
 ///
 /// let mut file = OpenOptions::new()

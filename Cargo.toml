@@ -1,6 +1,6 @@
 [package]
 name = "libpacstall"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2024"
 authors = [
     "Elsie <hwengerstickel@pm.me>"
@@ -28,5 +28,5 @@ name = "print_packages"
 doc-scrape-examples = true
 
 [[example]]
-name = "source_entry"
+name = "repo_handling"
 doc-scrape-examples = true
