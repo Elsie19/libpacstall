@@ -1,5 +1,5 @@
 use core::fmt;
-use std::{cmp::Ordering, fmt::Display, path::PathBuf, str::FromStr};
+use std::{cmp::Ordering, fmt::Display, path::PathBuf};
 
 use debversion::Version;
 use thiserror::Error;
@@ -11,32 +11,61 @@ use url::Url;
 ///
 /// ```
 /// # use libpacstall::pkg::keys::DistroClamp;
-/// let any_16_04: DistroClamp = "*:16.04".parse()?;
+/// let any_16_04 = DistroClamp::try_from("*:16.04")?;
 /// assert_eq!(any_16_04.version(), "16.04");
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub struct DistroClamp {
-    distro: String,
-    version: String,
+pub struct DistroClamp<'a> {
+    distro: &'a str,
+    version: &'a str,
 }
 
 /// Errors from parsing [`DistroClamp`].
 #[derive(Debug, Error)]
 pub enum DistroClampError {
     /// Missing `:` betwen distro and version.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use libpacstall::pkg::keys::DistroClamp;
+    /// let clamp = DistroClamp::try_from("ubuntu16.04").unwrap(); // <- Will fail because there is no `:`.
+    /// ```
     #[error("missing `:`")]
     NoSplit,
     /// Double glob `*:*`.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use libpacstall::pkg::keys::DistroClamp;
+    /// let clamp = DistroClamp::try_from("*:*").unwrap(); // <- Will fail because there is a double glob, which is disallowed.
+    /// ```
     #[error("double glob found")]
     DoubleGlob,
 }
 
 /// Package architectures.
+///
+/// # Examples
+///
+/// Checking if list has homogeneous architecture styles.
+///
+/// ```
+/// # use libpacstall::pkg::keys::Arch;
+/// use libpacstall::pkg::keys::ArchIterator; // Needed for `.allowed()`.
+///
+/// let my_mixed_archs = vec![Arch::Amd64, Arch::X86_64];
+/// assert!(!my_mixed_archs.into_iter().allowed());
+///
+/// let my_same_archs = vec![Arch::Amd64, Arch::I386];
+/// assert!(my_same_archs.into_iter().allowed());
+/// ```
 #[derive(Debug, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub enum Arch {
+pub enum Arch<'a> {
     /// Package can be compiled on *any* system, but will only run on the compiled architecture.
     Any,
     /// Package can run on *all* systems, regardless of architecture.
@@ -57,7 +86,18 @@ pub enum Arch {
     Armv7h,
     I686,
     // Other
-    Other(String),
+    Other(&'a str),
+}
+
+/// Adds [`ArchIterator::allowed`] to any iterator that iterates over [`Arch`].
+pub trait ArchIterator<'a>: Iterator<Item = Arch<'a>> {
+    /// Checks that the current value is allowed to co-exist with another architecture value.
+    ///
+    /// # Notes
+    ///
+    /// Pacstall does not allow mix-and-matching Arch style and Debian style architectures, hence
+    /// the existence of this trait and method.
+    fn allowed(self) -> bool;
 }
 
 /// Maintainer schema.
@@ -114,6 +154,7 @@ pub enum GitTarget<'a> {
 /// Hash sums.
 ///
 /// # Notes
+///
 /// This will not attempt to verify that the given sums list is compatible with the given [`HashSumType`].
 /// The caller should verify this before instantiation.
 #[derive(PartialEq, Eq)]
@@ -349,14 +390,46 @@ impl Default for GitTarget<'_> {
     }
 }
 
-impl PartialEq for Arch {
+impl<'a, I> ArchIterator<'a> for I
+where
+    I: Iterator<Item = Arch<'a>>,
+{
+    fn allowed(self) -> bool {
+        let mut peekable_iter = self.peekable();
+
+        match peekable_iter.next() {
+            Some(first) => {
+                peekable_iter.all(|arch_item| arch_item.is_arch_style() == first.is_arch_style())
+            }
+            None => true,
+        }
+    }
+}
+
+impl Arch<'_> {
+    /// Check if an [`Arch`] is an Arch Linux style architecture or a Debian style.
+    #[must_use]
+    pub fn is_arch_style(&self) -> bool {
+        matches!(
+            self,
+            Self::X86_64 | Self::Aarch64 | Self::Arm | Self::Armv7h | Self::I686
+        )
+    }
+}
+
+impl PartialEq for Arch<'_> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Amd64, Self::X86_64) | (Self::X86_64, Self::Amd64) => true,
-            (Self::Arm64, Self::Aarch64) | (Self::Aarch64, Self::Arm64) => true,
-            (Self::Armel, Self::Arm) | (Self::Arm, Self::Armel) => true,
-            (Self::Armhf, Self::Armv7h) | (Self::Armv7h, Self::Armhf) => true,
-            (Self::I386, Self::I686) | (Self::I686, Self::I386) => true,
+            (Self::Arm64, Self::Aarch64)
+            | (Self::Aarch64, Self::Arm64)
+            | (Self::Armel, Self::Arm)
+            | (Self::Arm, Self::Armel)
+            | (Self::Amd64, Self::X86_64)
+            | (Self::Armv7h, Self::Armhf)
+            | (Self::Armhf, Self::Armv7h)
+            | (Self::X86_64, Self::Amd64)
+            | (Self::I386, Self::I686)
+            | (Self::I686, Self::I386) => true,
             _ => self == other,
         }
     }
@@ -412,25 +485,22 @@ impl Display for SourceEntry<'_> {
     }
 }
 
-impl Display for DistroClamp {
+impl Display for DistroClamp<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}", self.distro, self.version)
     }
 }
 
-impl FromStr for DistroClamp {
-    type Err = DistroClampError;
+impl<'a> TryFrom<&'a str> for DistroClamp<'a> {
+    type Error = DistroClampError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.split_once(':') {
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+        match value.split_once(':') {
             Some((distro, version)) => {
                 if distro == "*" && version == "*" {
                     Err(DistroClampError::DoubleGlob)
                 } else {
-                    Ok(Self {
-                        distro: distro.to_string(),
-                        version: version.to_string(),
-                    })
+                    Ok(Self { distro, version })
                 }
             }
             None => Err(DistroClampError::NoSplit),
@@ -443,7 +513,7 @@ impl FromStr for DistroClamp {
 /// * `*:ver` == `any:ver`
 /// * `any:*` == `any:ver`
 /// * `any:ver` == `any:ver`
-impl PartialEq for DistroClamp {
+impl PartialEq for DistroClamp<'_> {
     fn eq(&self, other: &Self) -> bool {
         let distro_match = self.distro == "*" || other.distro == "*" || self.distro == other.distro;
         let version_match =
@@ -452,15 +522,15 @@ impl PartialEq for DistroClamp {
     }
 }
 
-impl DistroClamp {
+impl DistroClamp<'_> {
     #[must_use]
     pub fn distro(&self) -> &str {
-        &self.distro
+        self.distro
     }
 
     #[must_use]
     pub fn version(&self) -> &str {
-        &self.version
+        self.version
     }
 }
 
@@ -470,28 +540,28 @@ mod tests {
 
     #[test]
     fn distroclamp_version_glob() {
-        let first: DistroClamp = "ubuntu:*".parse().unwrap();
-        let second: DistroClamp = "ubuntu:16.04".parse().unwrap();
+        let first = DistroClamp::try_from("ubuntu:*").unwrap();
+        let second = DistroClamp::try_from("ubuntu:16.04").unwrap();
         assert_eq!(first, second);
     }
 
     #[test]
     fn distroclamp_distro_glob() {
-        let first: DistroClamp = "*:16.04".parse().unwrap();
-        let second: DistroClamp = "ubuntu:16.04".parse().unwrap();
+        let first = DistroClamp::try_from("*:16.04").unwrap();
+        let second = DistroClamp::try_from("ubuntu:16.04").unwrap();
         assert_eq!(first, second);
     }
 
     #[test]
     #[should_panic]
     fn distroclamp_double_glob() {
-        "*:*".parse::<DistroClamp>().unwrap();
+        DistroClamp::try_from("*:*").unwrap();
     }
 
     #[test]
     #[should_panic]
     fn distroclamp_no_colon() {
-        "*".parse::<DistroClamp>().unwrap();
+        DistroClamp::try_from("*").unwrap();
     }
 
     #[test]
