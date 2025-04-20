@@ -58,10 +58,10 @@ pub enum DistroClampError {
 /// use libpacstall::pkg::keys::ArchIterator; // Needed for `.allowed()`.
 ///
 /// let my_mixed_archs = vec![Arch::Amd64, Arch::X86_64];
-/// assert!(!my_mixed_archs.into_iter().allowed());
+/// assert!(!my_mixed_archs.iter().allowed());
 ///
 /// let my_same_archs = vec![Arch::Amd64, Arch::I386];
-/// assert!(my_same_archs.into_iter().allowed());
+/// assert!(my_same_archs.iter().allowed());
 /// ```
 #[derive(Debug, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
@@ -90,7 +90,7 @@ pub enum Arch<'a> {
 }
 
 /// Adds [`ArchIterator::allowed`] to any iterator that iterates over [`Arch`].
-pub trait ArchIterator<'a>: Iterator<Item = Arch<'a>> {
+pub trait ArchIterator<'a> {
     /// Checks that the current value is allowed to co-exist with another architecture value.
     ///
     /// # Notes
@@ -392,7 +392,7 @@ impl Default for GitTarget<'_> {
 
 impl<'a, I> ArchIterator<'a> for I
 where
-    I: Iterator<Item = Arch<'a>>,
+    I: Iterator<Item = &'a Arch<'a>>,
 {
     fn allowed(self) -> bool {
         let mut peekable_iter = self.peekable();
