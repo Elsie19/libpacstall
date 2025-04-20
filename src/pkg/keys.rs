@@ -71,25 +71,25 @@ pub struct Maintainer<'a> {
 /// Source entry schema.
 #[derive(PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub struct SourceEntry {
+pub struct SourceEntry<'a> {
     /// Destination (`dest::`).
     pub dest: Option<PathBuf>,
     /// Extract to location (`@to_location::`).
     pub to_location: Option<PathBuf>,
     /// Target.
-    pub source: SourceURLType,
+    pub source: SourceURLType<'a>,
 }
 
 /// Type of [`SourceEntry`] URL.
 #[derive(PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub enum SourceURLType {
+pub enum SourceURLType<'a> {
     /// Git URL.
     Git {
         /// URL of git repository.
         url: Url,
         /// What to clone.
-        target: GitTarget,
+        target: GitTarget<'a>,
     },
     /// File URL.
     File(Url),
@@ -100,13 +100,13 @@ pub enum SourceURLType {
 /// What part of repository to clone.
 #[derive(PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub enum GitTarget {
+pub enum GitTarget<'a> {
     /// Clone from branch.
-    Branch(String),
+    Branch(&'a str),
     /// Clone from tag.
-    Tag(String),
+    Tag(&'a str),
     /// Clone from commit.
-    Commit(String),
+    Commit(&'a str),
     /// Clone from `HEAD`.
     HEAD,
 }
@@ -204,6 +204,7 @@ impl VersionClamp {
     ///
     /// A [`Option::None`] value for `cmp` indicates that any version provided can satisfy the
     /// package.
+    #[must_use]
     pub fn new(cmp: Option<VerCmp>, version: Version) -> Self {
         Self { cmp, version }
     }
@@ -316,21 +317,7 @@ impl HashSums {
     }
 }
 
-impl GitTarget {
-    pub fn branch<S: Into<String>>(branch: S) -> Self {
-        Self::Branch(branch.into())
-    }
-
-    pub fn tag<S: Into<String>>(tag: S) -> Self {
-        Self::Tag(tag.into())
-    }
-
-    pub fn commit<S: Into<String>>(commit: S) -> Self {
-        Self::Commit(commit.into())
-    }
-}
-
-impl Display for GitTarget {
+impl Display for GitTarget<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Branch(branch) => write!(f, "#branch={branch}"),
@@ -341,7 +328,7 @@ impl Display for GitTarget {
     }
 }
 
-impl Display for SourceURLType {
+impl Display for SourceURLType<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::File(file) | Self::Url(file) => write!(f, "{file}"),
@@ -356,7 +343,7 @@ impl Display for SourceURLType {
     }
 }
 
-impl Default for GitTarget {
+impl Default for GitTarget<'_> {
     fn default() -> Self {
         Self::HEAD
     }
@@ -406,7 +393,7 @@ impl Display for Maintainer<'_> {
     }
 }
 
-impl Display for SourceEntry {
+impl Display for SourceEntry<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let dest = self.dest.as_ref().map(|d| d.to_string_lossy());
         let to_location = self.to_location.as_ref().map(|l| l.to_string_lossy());

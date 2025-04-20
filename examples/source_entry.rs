@@ -10,7 +10,7 @@ fn main() {
         source: SourceURLType::Git {
             url: Url::parse("https://github.com/Elsie19/fancy_message")
                 .expect("Could not parse URL"),
-            target: GitTarget::tag("1.0.0"),
+            target: GitTarget::Tag("1.0.0"),
         },
     };
     println!("{}", source);
