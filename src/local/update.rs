@@ -55,13 +55,7 @@ macro_rules! impl_tryfrom_update {
 ///
 /// ```
 /// # use libpacstall::local::update::Update;
-/// let my_update = match Update::try_from("Elsie19 master") {
-///     Ok(o) => o,
-///     Err(e) => {
-///         eprintln!("Could not parse: {e}");
-///         std::process::exit(1);
-///     }
-/// };
+/// let my_update = Update::new("Elsie19", "master").expect("Could not parse");
 /// ```
 ///
 /// Creating an [`Update`] from a [`Path`](`std::path::Path`).
@@ -81,7 +75,7 @@ macro_rules! impl_tryfrom_update {
 /// # use libpacstall::local::update::Update;
 /// # use std::io::Write;
 /// #
-/// let my_update = Update::try_from("pacstall develop")?;
+/// let my_update = Update::new("pacstall", "develop").unwrap();
 ///
 /// let mut file = OpenOptions::new()
 ///    .write(true)
@@ -108,6 +102,9 @@ pub enum UpdateParseError {
     /// Mismatched string split size.
     #[error("invalid length of split, expected `2`, got `{0}`")]
     MismatchLength(usize),
+    /// Empty string.
+    #[error("empty string")]
+    EmptyString,
 }
 
 impl Default for Update {
@@ -126,17 +123,31 @@ impl Display for Update {
     }
 }
 
-impl_tryfrom_update!(file: &std::path::Path, std::path::PathBuf, &std::ffi::OsStr, std::ffi::OsString);
+impl_tryfrom_update!(file: &std::path::Path, std::path::PathBuf);
 impl_tryfrom_update!(direct: &str, String);
 
 impl Update {
+    /// Make new [`Update`].
+    ///
+    /// # Errors
+    /// Will error if either parameter passed is empty.
+    pub fn new<S: Into<String>>(username: S, branch: S) -> Result<Self, UpdateParseError> {
+        let username = username.into();
+        let branch = branch.into();
+
+        if username.is_empty() || branch.is_empty() {
+            Err(UpdateParseError::EmptyString)
+        } else {
+            Ok(Self { username, branch })
+        }
+    }
     /// Return targeted update username.
     ///
     /// # Example
     ///
     /// ```
     /// # use libpacstall::local::update::Update;
-    /// let my_update = Update::try_from("oklopfer master").unwrap();
+    /// let my_update = Update::new("oklopfer", "master").unwrap();
     /// assert_eq!(my_update.username(), "oklopfer");
     /// ```
     #[must_use]
@@ -150,7 +161,7 @@ impl Update {
     ///
     /// ```
     /// # use libpacstall::local::update::Update;
-    /// let my_update = Update::try_from("oklopfer master").unwrap();
+    /// let my_update = Update::new("oklopfer", "master").unwrap();
     /// assert_eq!(my_update.branch(), "master");
     /// ```
     #[must_use]
@@ -168,20 +179,20 @@ impl Update {
         self.username = new_branch.into();
     }
 
-    /// Copy new [`Update`] with branch as `master`.
+    /// Move [`Update`] with branch as `master`.
     #[must_use]
-    pub fn to_master(&self) -> Self {
+    pub fn into_master(self) -> Self {
         Self {
-            username: self.username.clone(),
+            username: self.username,
             branch: String::from("master"),
         }
     }
 
-    /// Copy new [`Update`] with branch as `develop`.
+    /// Move [`Update`] with branch as `develop`.
     #[must_use]
-    pub fn to_develop(&self) -> Self {
+    pub fn into_develop(self) -> Self {
         Self {
-            username: self.username.clone(),
+            username: self.username,
             branch: String::from("develop"),
         }
     }

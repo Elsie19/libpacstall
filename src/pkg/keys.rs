@@ -63,9 +63,9 @@ pub enum Arch {
 /// Maintainer schema.
 #[derive(PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub struct Maintainer {
-    name: String,
-    email: String,
+pub struct Maintainer<'a> {
+    name: &'a str,
+    email: &'a str,
 }
 
 /// Source entry schema.
@@ -375,7 +375,7 @@ impl PartialEq for Arch {
     }
 }
 
-impl Maintainer {
+impl<'a> Maintainer<'a> {
     /// Make new maintainer key.
     ///
     /// # Examples
@@ -384,25 +384,23 @@ impl Maintainer {
     /// # use libpacstall::pkg::keys::Maintainer;
     /// let my_maintainer = Maintainer::new("Elsie", "hwengerstickel@pm.me");
     /// ```
-    pub fn new<S: Into<String>>(name: S, email: S) -> Self {
-        Self {
-            name: name.into(),
-            email: email.into(),
-        }
+    #[must_use]
+    pub fn new(name: &'a str, email: &'a str) -> Self {
+        Self { name, email }
     }
 
     #[must_use]
     pub fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     #[must_use]
     pub fn email(&self) -> &str {
-        &self.email
+        self.email
     }
 }
 
-impl Display for Maintainer {
+impl Display for Maintainer<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} <{}>", self.name, self.email)
     }

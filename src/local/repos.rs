@@ -24,6 +24,7 @@ use url::Url;
 /// # use libpacstall::local::repos::PacstallRepos;
 /// # use std::path::Path;
 /// # use std::fs::File;
+/// # fn main() -> std::io::Result<()> {
 /// let file = File::open(Path::new("/usr/share/pacstall/repo/pacstallrepo"))?;
 /// let repos = match PacstallRepos::try_from(file) {
 ///     Ok(o) => o,
@@ -32,23 +33,26 @@ use url::Url;
 ///         std::process::exit(1);
 ///     }
 /// };
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Clone)]
 pub struct PacstallRepos(Vec<PacstallRepo>);
 
-/// A repository entry.
+/// A repository entry with a URL and an optional alias.
 ///
 /// # Examples
 ///
 /// ```
 /// # use libpacstall::local::repos::PacstallRepo;
 /// # use url::Url;
+/// # fn main() -> Result<(), libpacstall::local::repos::RepoEntryError> {
 /// let basic = "https://raw.githubusercontent.com/pacstall/pacstall/master".parse::<PacstallRepo>()?;
 /// let with_alias = "https://raw.githubusercontent.com/pacstall/pacstall/master @pacstall".parse::<PacstallRepo>()?;
 /// assert_eq!(with_alias.alias(), Some("pacstall"));
-/// # Ok::<(), Box<dyn std::error::Error>>(())
+/// # Ok(())
+/// # }
 /// ```
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Clone)]
@@ -161,9 +165,8 @@ impl FromStr for PacstallRepo {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut parts = s.split_whitespace();
         let url = Url::parse(parts.next().ok_or(Self::Err::MissingUrl)?)?;
-        let next = parts.next();
 
-        match next {
+        match parts.next() {
             Some(alias) => {
                 if !alias.starts_with('@') {
                     return Err(Self::Err::MissingAtSign);
