@@ -68,18 +68,14 @@ fn main() -> std::io::Result<()> {
     for pkg in pkgs {
         // The actual "search" part that checks if text matches.
         if pkg.0.contains(&args.keyword) {
+            let full_url = pkg.1.first().unwrap().to_string();
             println!(
                 "\x1b[32m{}\x1b[0m \x1b[35m@\x1b[0m \x1b[36m{}\x1b[0m",
                 pkg.0,
                 vte_format!(
-                    format!(
-                        "{}/packages/{}/{}.pacscript",
-                        pkg.1.first().unwrap().url().to_string(),
-                        pkg.0,
-                        pkg.0
-                    ),
+                    format!("{}/packages/{}/{}.pacscript", full_url, pkg.0, pkg.0),
                     "{}",
-                    pkg.1.first().unwrap().url().to_string()
+                    full_url
                 )
             );
         }
