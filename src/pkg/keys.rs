@@ -85,7 +85,7 @@ pub enum Arch<'a> {
     Arm,
     Armv7h,
     I686,
-    // Other
+    /// Custom architecture not known by pacstall.
     Other(&'a str),
 }
 
@@ -191,10 +191,15 @@ pub struct VersionClamp {
 #[derive(PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum VerCmp {
+    /// Equal (`==`).
     Eq,
+    /// Less-than (`<`).
     Lt,
+    /// Greater-than (`>`).
     Gt,
+    /// Less-or-equal-than (`<=`).
     Le,
+    /// Greater-or-equal-than (`>=`).
     Ge,
 }
 
@@ -243,8 +248,8 @@ impl Display for VersionClamp {
 impl VersionClamp {
     /// Make new [`VersionClamp`].
     ///
-    /// A [`Option::None`] value for `cmp` indicates that any version provided can satisfy the
-    /// package.
+    /// An [`Option::None`] value for `cmp` indicates that any version provided can satisfy the
+    /// package, generally used for when you want "just the package".
     #[must_use]
     pub fn new(cmp: Option<VerCmp>, version: Version) -> Self {
         Self { cmp, version }
@@ -449,17 +454,23 @@ impl<'a> Maintainer<'a> {
         Self { name, email }
     }
 
+    /// Get name from [`Maintainer`].
     #[must_use]
     pub fn name(&self) -> &str {
         self.name
     }
 
+    /// Get email from [`Maintainer`].
     #[must_use]
     pub fn email(&self) -> &str {
         self.email
     }
 }
 
+/// The display output conforms (*generally*) to the `name-addr` portion of
+/// <https://www.rfc-editor.org/rfc/rfc5322#section-3.4>.
+///
+/// Its expected to look like `$name <$email>`.
 impl Display for Maintainer<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} <{}>", self.name, self.email)
@@ -472,7 +483,7 @@ impl Display for SourceEntry<'_> {
         let to_location = self.to_location.as_ref().map(|l| l.to_string_lossy());
 
         let source_str = match &self.source {
-            matched @ SourceURLType::Git { .. } => format!("{matched}"),
+            matched @ SourceURLType::Git { .. } => matched.to_string(),
             _ => self.source.to_string(),
         };
 
@@ -496,13 +507,7 @@ impl<'a> TryFrom<&'a str> for DistroClamp<'a> {
 
     fn try_from(value: &'a str) -> Result<Self, Self::Error> {
         match value.split_once(':') {
-            Some((distro, version)) => {
-                if distro == "*" && version == "*" {
-                    Err(DistroClampError::DoubleGlob)
-                } else {
-                    Ok(Self { distro, version })
-                }
-            }
+            Some((distro, version)) => Ok(Self::new(distro, version)?),
             None => Err(DistroClampError::NoSplit),
         }
     }
@@ -522,7 +527,23 @@ impl PartialEq for DistroClamp<'_> {
     }
 }
 
-impl DistroClamp<'_> {
+impl<'a> DistroClamp<'a> {
+    /// Create new [`DistroClamp`] from a distro and version.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use libpacstall::pkg::keys::DistroClamp;
+    /// let distro = DistroClamp::new("ubuntu", "24.04").expect("Could not parse");
+    /// ```
+    pub fn new(distro: &'a str, version: &'a str) -> Result<Self, DistroClampError> {
+        if distro == "*" && version == "*" {
+            Err(DistroClampError::DoubleGlob)
+        } else {
+            Ok(Self { distro, version })
+        }
+    }
+
     #[must_use]
     pub fn distro(&self) -> &str {
         self.distro
