@@ -1,6 +1,6 @@
 [package]
 name = "libpacstall"
-version = "0.1.13"
+version = "0.1.14"
 edition = "2024"
 authors = [
     "Elsie <hwengerstickel@pm.me>"
@@ -17,7 +17,9 @@ thiserror = "2.0.12"
 url = "2.5.4"
 
 [features]
+default = ["system"]
 serde = ["dep:serde", "serde/derive", "url/serde", "debversion/serde"]
+system = []
 
 [dev-dependencies]
 clap = { version = "4.5.37", features = ["derive"] }
