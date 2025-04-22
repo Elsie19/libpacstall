@@ -190,6 +190,7 @@ impl FromStr for PacstallRepo {
     }
 }
 
+#[cfg(feature = "system")]
 impl TryFrom<File> for PacstallRepos {
     type Error = RepoFileParseError;
 
@@ -211,6 +212,7 @@ impl PacstallRepo {
     ///
     /// # Errors
     /// Will error if [`Url::from_directory_path`] fails.
+    #[cfg(feature = "system")]
     pub fn from_path<P, S>(path: P, alias: Option<S>) -> Result<Self, ()>
     where
         P: AsRef<Path>,
@@ -279,6 +281,7 @@ impl PacstallRepo {
 
 impl PacstallRepos {
     /// Create new [`PacstallRepos`] from readable buffer.
+    #[cfg(feature = "system")]
     pub fn open<R: Read>(contents: R) -> Result<Self, RepoFileParseError> {
         Ok(Self(
             BufReader::new(contents)

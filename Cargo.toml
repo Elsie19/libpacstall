@@ -1,6 +1,6 @@
 [package]
 name = "libpacstall"
-version = "0.1.14"
+version = "0.1.15"
 edition = "2024"
 authors = [
     "Elsie <hwengerstickel@pm.me>"
@@ -19,6 +19,7 @@ url = "2.5.4"
 [features]
 default = ["system"]
 serde = ["dep:serde", "serde/derive", "url/serde", "debversion/serde"]
+# Enables system interfacing. If disabled, many operations can only be done with string parsing.
 system = []
 
 [dev-dependencies]
