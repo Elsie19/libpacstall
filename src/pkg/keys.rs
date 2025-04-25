@@ -1,7 +1,8 @@
 use core::fmt;
-use std::{cmp::Ordering, fmt::Display, path::PathBuf};
+use std::{cmp::Ordering, fmt::Display, path::PathBuf, str::FromStr};
 
 use debversion::Version;
+use etc_os_release::OsRelease;
 use thiserror::Error;
 use url::Url;
 
@@ -11,15 +12,27 @@ use url::Url;
 ///
 /// ```
 /// # use libpacstall::pkg::keys::DistroClamp;
-/// let any_16_04 = DistroClamp::try_from("*:16.04")?;
+/// let any_16_04 = "*:16.04".parse::<DistroClamp>()?;
 /// assert_eq!(any_16_04.version(), "16.04");
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize))]
-pub struct DistroClamp<'a> {
-    distro: &'a str,
-    version: &'a str,
+pub struct DistroClamp {
+    distro: String,
+    version: String,
+    // Used generally with [`DistroClamp::system`] for extra pattern matching against generalized
+    // [`DistroClamps`].
+    os_release: Option<OsRelease>,
+}
+
+struct DistroInfo {
+    name: String,
+    version_name: String,
+    version_number: String,
+    parent: Option<String>,
+    parent_vname: Option<String>,
+    parent_number: Option<String>,
 }
 
 /// Errors from parsing [`DistroClamp`].
@@ -31,7 +44,7 @@ pub enum DistroClampError {
     ///
     /// ```no_run
     /// # use libpacstall::pkg::keys::DistroClamp;
-    /// let clamp = DistroClamp::try_from("ubuntu16.04").unwrap(); // <- Will fail because there is no `:`.
+    /// let clamp = "ubuntu16.04".parse::<DistroClamp>().unwrap(); // <- Will fail because there is no `:`.
     /// ```
     #[error("missing `:`")]
     NoSplit,
@@ -41,10 +54,14 @@ pub enum DistroClampError {
     ///
     /// ```no_run
     /// # use libpacstall::pkg::keys::DistroClamp;
-    /// let clamp = DistroClamp::try_from("*:*").unwrap(); // <- Will fail because there is a double glob, which is disallowed.
+    /// let clamp = "*:*".parse::<DistroClamp>().unwrap(); // <- Will fail because there is a double glob, which is disallowed.
     /// ```
     #[error("double glob found")]
     DoubleGlob,
+    #[error("os release error")]
+    OsReleaseError(#[from] etc_os_release::Error),
+    #[error("version could not be found from os-release")]
+    EmptyVersion,
 }
 
 /// Package architectures.
@@ -496,17 +513,17 @@ impl Display for SourceEntry<'_> {
     }
 }
 
-impl Display for DistroClamp<'_> {
+impl Display for DistroClamp {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}:{}", self.distro, self.version)
     }
 }
 
-impl<'a> TryFrom<&'a str> for DistroClamp<'a> {
-    type Error = DistroClampError;
+impl FromStr for DistroClamp {
+    type Err = DistroClampError;
 
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
-        match value.split_once(':') {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.split_once(':') {
             Some((distro, version)) => Ok(Self::new(distro, version)?),
             None => Err(DistroClampError::NoSplit),
         }
@@ -518,16 +535,28 @@ impl<'a> TryFrom<&'a str> for DistroClamp<'a> {
 /// * `*:ver` == `any:ver`
 /// * `any:*` == `any:ver`
 /// * `any:ver` == `any:ver`
-impl PartialEq for DistroClamp<'_> {
+impl PartialEq for DistroClamp {
     fn eq(&self, other: &Self) -> bool {
         let distro_match = self.distro == "*" || other.distro == "*" || self.distro == other.distro;
         let version_match =
             self.version == "*" || other.version == "*" || self.version == other.version;
-        distro_match && version_match
+        let already_match = distro_match && version_match;
+
+        if already_match {
+            true
+        } else {
+            match &self.os_release {
+                // Basic comparisons where we have no extra information to rely on.
+                None => already_match,
+                Some(os) => {
+                    unimplemented!("Add nuanced checks (version to name)");
+                }
+            }
+        }
     }
 }
 
-impl<'a> DistroClamp<'a> {
+impl DistroClamp {
     /// Create new [`DistroClamp`] from a distro and version.
     ///
     /// # Examples
@@ -536,22 +565,46 @@ impl<'a> DistroClamp<'a> {
     /// # use libpacstall::pkg::keys::DistroClamp;
     /// let distro = DistroClamp::new("ubuntu", "24.04").expect("Could not parse");
     /// ```
-    pub fn new(distro: &'a str, version: &'a str) -> Result<Self, DistroClampError> {
+    pub fn new<S: Into<String>>(distro: S, version: S) -> Result<Self, DistroClampError> {
+        let distro = distro.into();
+        let version = version.into();
         if distro == "*" && version == "*" {
             Err(DistroClampError::DoubleGlob)
         } else {
-            Ok(Self { distro, version })
+            Ok(Self {
+                distro,
+                version,
+                os_release: None,
+            })
         }
     }
 
     #[must_use]
     pub fn distro(&self) -> &str {
-        self.distro
+        &self.distro
     }
 
     #[must_use]
     pub fn version(&self) -> &str {
-        self.version
+        &self.version
+    }
+
+    /// Get running systems [`DistroClamp`].
+    ///
+    /// This method should always be used to base checking
+    /// other clamps against, because it comes with extra context that it can match more
+    /// abstractly.
+    #[must_use]
+    pub fn system() -> Result<Self, DistroClampError> {
+        let os_release = OsRelease::open()?;
+        Ok(Self {
+            distro: os_release.id().to_string(),
+            version: os_release
+                .version_codename()
+                .ok_or(DistroClampError::EmptyVersion)?
+                .to_string(),
+            os_release: Some(os_release),
+        })
     }
 }
 
@@ -561,28 +614,28 @@ mod tests {
 
     #[test]
     fn distroclamp_version_glob() {
-        let first = DistroClamp::try_from("ubuntu:*").unwrap();
-        let second = DistroClamp::try_from("ubuntu:16.04").unwrap();
+        let first = "ubuntu:*".parse::<DistroClamp>().unwrap();
+        let second = "ubuntu:16.04".parse::<DistroClamp>().unwrap();
         assert_eq!(first, second);
     }
 
     #[test]
     fn distroclamp_distro_glob() {
-        let first = DistroClamp::try_from("*:16.04").unwrap();
-        let second = DistroClamp::try_from("ubuntu:16.04").unwrap();
+        let first = "*:16.04".parse::<DistroClamp>().unwrap();
+        let second = "ubuntu:16.04".parse::<DistroClamp>().unwrap();
         assert_eq!(first, second);
     }
 
     #[test]
     #[should_panic]
     fn distroclamp_double_glob() {
-        DistroClamp::try_from("*:*").unwrap();
+        "*:*".parse::<DistroClamp>().unwrap();
     }
 
     #[test]
     #[should_panic]
     fn distroclamp_no_colon() {
-        DistroClamp::try_from("*").unwrap();
+        "*".parse::<DistroClamp>().unwrap();
     }
 
     #[test]

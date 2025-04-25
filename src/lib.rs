@@ -16,3 +16,8 @@ pub mod local;
 
 /// Handles individual packages.
 pub mod pkg;
+
+/// Handles one-off operations from the system.
+///
+/// Many of these methods are used for generating values for variables to be used in the shell.
+pub mod sys;

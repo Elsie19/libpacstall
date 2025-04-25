@@ -18,7 +18,6 @@ macro_rules! impl_tryfrom_update {
 
     (file: $($type:ty),+ $(,)?) => {
         $(
-            #[cfg(feature = "system")]
             impl TryFrom<$type> for Update {
                 type Error = UpdateParseError;
 

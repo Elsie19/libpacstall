@@ -12,15 +12,14 @@ keywords = ["aur", "pacstall", "package-manager", "linux", "apt"]
 
 [dependencies]
 debversion = "0.4.4"
+etc-os-release = { version = "0.1.1", features = ["url"] }
+num_cpus = "1.16.0"
 serde = { version = "1.0.219", optional = true, features = ["derive"] }
 thiserror = "2.0.12"
 url = "2.5.4"
 
 [features]
-default = ["system"]
 serde = ["dep:serde", "serde/derive", "url/serde", "debversion/serde"]
-# Enables system interfacing. If disabled, many operations can only be done with string parsing.
-system = []
 
 [dev-dependencies]
 clap = { version = "4.5.37", features = ["derive"] }
@@ -32,4 +31,8 @@ doc-scrape-examples = true
 
 [[example]]
 name = "repo_handling"
+doc-scrape-examples = true
+
+[[example]]
+name = "print_distro"
 doc-scrape-examples = true
