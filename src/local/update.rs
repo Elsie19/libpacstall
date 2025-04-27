@@ -86,7 +86,6 @@ macro_rules! impl_tryfrom_update {
 ///
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(PartialEq, Eq)]
 pub struct Update {
     username: String,

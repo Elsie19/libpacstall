@@ -36,7 +36,6 @@ use url::Url;
 /// # Ok(())
 /// # }
 /// ```
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Clone)]
 pub struct PacstallRepos(Vec<PacstallRepo>);
 
@@ -54,7 +53,6 @@ pub struct PacstallRepos(Vec<PacstallRepo>);
 /// # Ok(())
 /// # }
 /// ```
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 #[derive(Clone, PartialEq, Eq)]
 pub struct PacstallRepo {
     url: Url,

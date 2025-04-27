@@ -3,6 +3,7 @@ use std::{cmp::Ordering, fmt::Display, path::PathBuf, str::FromStr};
 
 use debversion::Version;
 use etc_os_release::OsRelease;
+use serde::Deserialize;
 use thiserror::Error;
 use url::Url;
 
@@ -16,23 +17,27 @@ use url::Url;
 /// assert_eq!(any_16_04.version(), "16.04");
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(Debug, Clone)]
 pub struct DistroClamp {
     distro: String,
     version: String,
-    // Used generally with [`DistroClamp::system`] for extra pattern matching against generalized
-    // [`DistroClamps`].
     os_release: Option<OsRelease>,
+    info: Option<Vec<DistroCSV>>,
 }
 
-struct DistroInfo {
-    name: String,
-    version_name: String,
-    version_number: String,
-    parent: Option<String>,
-    parent_vname: Option<String>,
-    parent_number: Option<String>,
+/// Deserialization for `/usr/share/distro-info/*.csv`.
+#[derive(Debug, Clone, Deserialize)]
+struct DistroCSV {
+    version: Option<String>,
+    codename: String,
+    series: String,
+    created: String,
+    release: String,
+    eol: String,
+    #[serde(alias = "eol-lts", alias = "eol-server", default)]
+    eol_server: Option<String>,
+    #[serde(alias = "eol-esm", alias = "eol-elts", default)]
+    eol_esm: Option<String>,
 }
 
 /// Errors from parsing [`DistroClamp`].
@@ -62,6 +67,8 @@ pub enum DistroClampError {
     OsReleaseError(#[from] etc_os_release::Error),
     #[error("version could not be found from os-release")]
     EmptyVersion,
+    #[error("error in distro info")]
+    DistroInfo(#[from] csv::Error),
 }
 
 /// Package architectures.
@@ -80,8 +87,7 @@ pub enum DistroClampError {
 /// let my_same_archs = vec![Arch::Amd64, Arch::I386];
 /// assert!(my_same_archs.iter().allowed());
 /// ```
-#[derive(Debug, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(Debug, Eq, Clone, Copy)]
 pub enum Arch<'a> {
     /// Package can be compiled on *any* system, but will only run on the compiled architecture.
     Any,
@@ -118,16 +124,14 @@ pub trait ArchIterator<'a> {
 }
 
 /// Maintainer schema.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub struct Maintainer<'a> {
     name: &'a str,
     email: &'a str,
 }
 
 /// Source entry schema.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(PartialEq, Eq, Clone)]
 pub struct SourceEntry<'a> {
     /// Destination (`dest::`).
     pub dest: Option<PathBuf>,
@@ -138,8 +142,7 @@ pub struct SourceEntry<'a> {
 }
 
 /// Type of [`SourceEntry`] URL.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(PartialEq, Eq, Clone)]
 pub enum SourceURLType<'a> {
     /// Git URL.
     Git {
@@ -155,8 +158,7 @@ pub enum SourceURLType<'a> {
 }
 
 /// What part of repository to clone.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum GitTarget<'a> {
     /// Clone from branch.
     Branch(&'a str),
@@ -174,8 +176,7 @@ pub enum GitTarget<'a> {
 ///
 /// This will not attempt to verify that the given sums list is compatible with the given [`HashSumType`].
 /// The caller should verify this before instantiation.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(PartialEq, Eq, Clone)]
 pub struct HashSums {
     hasher: HashSumType,
     // The reason why this is `Option<String>` is because we need to represent `SKIP` somehow and we
@@ -184,8 +185,7 @@ pub struct HashSums {
 }
 
 /// Type of sum used.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum HashSumType {
     Sha256,
     Sha512,
@@ -197,16 +197,14 @@ pub enum HashSumType {
 }
 
 /// Package version with an expected range clamp.
-#[derive(Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(Eq, Clone)]
 pub struct VersionClamp {
     cmp: Option<VerCmp>,
     version: Version,
 }
 
 /// Version comparisons for [`Version`].
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize))]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum VerCmp {
     /// Equal (`==`).
     Eq,
@@ -396,6 +394,8 @@ impl Display for SourceURLType<'_> {
         match self {
             Self::File(file) | Self::Url(file) => write!(f, "{file}"),
             Self::Git { url, .. } => {
+                // This isn't a "file extension".
+                #[allow(clippy::case_sensitive_file_extension_comparisons)]
                 if url.path().ends_with(".git") {
                     write!(f, "{url}")
                 } else {
@@ -436,6 +436,22 @@ impl Arch<'_> {
             self,
             Self::X86_64 | Self::Aarch64 | Self::Arm | Self::Armv7h | Self::I686
         )
+    }
+
+    /// Get default architecture from system.
+    #[must_use]
+    pub fn system_arch() -> Self {
+        match std::env::consts::ARCH {
+            "x86" => Self::I386,
+            "x86_64" => Self::Amd64,
+            "arm" => Self::Armel,
+            "aarch64" => Self::Arm64,
+            "mips64" | "mips64r6" => Self::Mips64el,
+            "powerpc64" => Self::Ppc64el,
+            "riscv64" => Self::Riscv64,
+            "s390x" => Self::S390x,
+            default => Self::Other(default),
+        }
     }
 }
 
@@ -537,20 +553,44 @@ impl FromStr for DistroClamp {
 /// * `any:ver` == `any:ver`
 impl PartialEq for DistroClamp {
     fn eq(&self, other: &Self) -> bool {
-        let distro_match = self.distro == "*" || other.distro == "*" || self.distro == other.distro;
-        let version_match =
-            self.version == "*" || other.version == "*" || self.version == other.version;
-        let already_match = distro_match && version_match;
+        let basic_match = if self.distro == other.distro {
+            match (self.version.as_str(), other.version.as_str()) {
+                (_, "*") | ("*", _) => true,
+                (ver, other_ver) => ver == other_ver,
+            }
+        } else {
+            match (self.distro.as_str(), other.distro.as_str()) {
+                (_, "*") | ("*", _) => true,
+                (ver, other_ver) => ver == other_ver,
+            }
+        };
 
-        if already_match {
+        if basic_match {
             true
         } else {
-            match &self.os_release {
-                // Basic comparisons where we have no extra information to rely on.
-                None => already_match,
-                Some(os) => {
-                    unimplemented!("Add nuanced checks (version to name)");
+            // These are the nuanced checks.
+            match (&self.os_release, &self.info) {
+                (Some(_os), Some(info)) => {
+                    // Do distro version checks.
+                    // Do we have a case where self has a name and other has the equivalent version (or vise-versa)?
+                    if self.distro == other.distro && Self::release_version_eq(info, &other.version)
+                    {
+                        return true;
+                    }
+
+                    if Self::is_child(&self.distro, &other.distro)
+                        || Self::is_child(&other.distro, &self.distro)
+                    {
+                        if Self::release_version_eq(info, &other.version)
+                            || Self::release_version_eq(info, &self.version)
+                        {
+                            return true;
+                        }
+                    }
+
+                    false
                 }
+                _ => basic_match,
             }
         }
     }
@@ -575,6 +615,7 @@ impl DistroClamp {
                 distro,
                 version,
                 os_release: None,
+                info: None,
             })
         }
     }
@@ -594,7 +635,6 @@ impl DistroClamp {
     /// This method should always be used to base checking
     /// other clamps against, because it comes with extra context that it can match more
     /// abstractly.
-    #[must_use]
     pub fn system() -> Result<Self, DistroClampError> {
         let os_release = OsRelease::open()?;
         Ok(Self {
@@ -603,8 +643,40 @@ impl DistroClamp {
                 .version_codename()
                 .ok_or(DistroClampError::EmptyVersion)?
                 .to_string(),
-            os_release: Some(os_release),
+            os_release: Some(os_release.clone()),
+            info: Some(if os_release.id() == "ubuntu" {
+                csv::ReaderBuilder::new()
+                    .flexible(true)
+                    .from_path("/usr/share/distro-info/ubuntu.csv")?
+                    .into_deserialize()
+                    .collect::<Result<Vec<DistroCSV>, csv::Error>>()?
+            } else {
+                csv::ReaderBuilder::new()
+                    .flexible(true)
+                    .from_path("/usr/share/distro-info/debian.csv")?
+                    .into_deserialize()
+                    .collect::<Result<Vec<DistroCSV>, csv::Error>>()?
+            }),
         })
+    }
+
+    /// Given a list of [`DistroCSV`], is `other` in it?
+    fn release_version_eq(info: &[DistroCSV], other: &str) -> bool {
+        info.iter()
+            .map(|entry| {
+                if let Some(version) = &entry.version {
+                    (version.as_str(), entry.series.as_str())
+                } else {
+                    (entry.series.as_str(), entry.series.as_str())
+                }
+            })
+            .any(|(version, codename)| *other == *version || *other == *codename)
+    }
+
+    /// Some distros don't put in the work for us to figure out programatically what its parent is,
+    /// so we manually check the problematic ones here.
+    fn is_child(child: &str, parent: &str) -> bool {
+        matches!((child, parent), ("devuan", "debian") | ("kali", "debian"))
     }
 }
 

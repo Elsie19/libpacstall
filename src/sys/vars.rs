@@ -1,6 +1,7 @@
 use std::env;
 
 /// Get number of CPUs or fetch from `$PACSTALL_BUILD_CORES`.
+#[must_use]
 pub fn ncpu() -> usize {
     let cpu_count = num_cpus::get();
     if let Ok(cpu) = env::var("PACSTALL_BUILD_CORES") {

@@ -17,7 +17,7 @@ pub mod local;
 /// Handles individual packages.
 pub mod pkg;
 
-/// Handles one-off operations from the system.
+/// Handles interfaces used in the execution of bash code in pacstall.
 ///
 /// Many of these methods are used for generating values for variables to be used in the shell.
 pub mod sys;
