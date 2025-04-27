@@ -658,20 +658,31 @@ impl DistroClamp {
                 .ok_or(DistroClampError::EmptyVersion)?
                 .to_string(),
             os_release: Some(os_release.clone()),
-            info: Some(if os_release.id() == "ubuntu" {
-                csv::ReaderBuilder::new()
-                    .flexible(true)
-                    .from_path("/usr/share/distro-info/ubuntu.csv")?
-                    .into_deserialize()
-                    .collect::<Result<Vec<DistroCSV>, csv::Error>>()?
-            } else {
-                csv::ReaderBuilder::new()
-                    .flexible(true)
-                    .from_path("/usr/share/distro-info/debian.csv")?
-                    .into_deserialize()
-                    .collect::<Result<Vec<DistroCSV>, csv::Error>>()?
-            }),
+            info: match os_release.id() {
+                "ubuntu" => Some(Self::deserialize_csv("ubuntu")?),
+                "debian" => Some(Self::deserialize_csv("debian")?),
+                _ => {
+                    for id in os_release.id_like().expect("LATER") {
+                        match id {
+                            "ubuntu" => Some(Self::deserialize_csv("ubuntu")?),
+                            "debian" => Some(Self::deserialize_csv("debian")?),
+                            _ => continue,
+                        };
+                    }
+                    None
+                }
+            },
         })
+    }
+
+    fn deserialize_csv(distro: &str) -> Result<Vec<DistroCSV>, DistroClampError> {
+        let path = format!("/usr/share/distro-info/{distro}.csv");
+        println!("{path}");
+        Ok(csv::ReaderBuilder::new()
+            .flexible(true)
+            .from_path(path)?
+            .into_deserialize()
+            .collect::<Result<Vec<DistroCSV>, csv::Error>>()?)
     }
 
     /// Given a list of [`DistroCSV`], is `other` in it?

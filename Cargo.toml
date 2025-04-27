@@ -35,5 +35,9 @@ name = "repo_handling"
 doc-scrape-examples = true
 
 [[example]]
+name = "distro_check"
+doc-scrape-examples = true
+
+[[example]]
 name = "interface_with_shell"
 doc-scrape-examples = true
