@@ -551,6 +551,9 @@ impl FromStr for DistroClamp {
 /// * `*:ver` == `any:ver`
 /// * `any:*` == `any:ver`
 /// * `any:ver` == `any:ver`
+///
+/// There is also a special case for when this check has more information (given by
+/// [`DistroClamp::system`]).
 impl PartialEq for DistroClamp {
     fn eq(&self, other: &Self) -> bool {
         let basic_match = if self.distro == other.distro {
@@ -599,6 +602,12 @@ impl PartialEq for DistroClamp {
 impl DistroClamp {
     /// Create new [`DistroClamp`] from a distro and version.
     ///
+    /// # Note
+    ///
+    /// This should be used sparingly! The system's clamp should be created from
+    /// [`DistroClamp::system`], and most incoming clamps will be in string format and will need to
+    /// be `.parse()`ed.
+    ///
     /// # Examples
     ///
     /// ```
@@ -630,11 +639,16 @@ impl DistroClamp {
         &self.version
     }
 
-    /// Get running systems [`DistroClamp`].
+    /// Get running system's [`DistroClamp`].
     ///
     /// This method should always be used to base checking
     /// other clamps against, because it comes with extra context that it can match more
     /// abstractly.
+    ///
+    /// # Errors
+    ///
+    /// Will fail if `/usr/share/distro-info/(ubuntu ? debian).csv` does not exist, or if the file
+    /// cannot be deserialized.
     pub fn system() -> Result<Self, DistroClampError> {
         let os_release = OsRelease::open()?;
         Ok(Self {
