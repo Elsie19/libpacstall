@@ -47,7 +47,7 @@ struct DistroClampExtra {
     distro_pretty_name: String,
     distro_parent: Option<String>,
     distro_parent_vname: Option<String>,
-    distro_parent_number: String,
+    distro_parent_number: Option<String>,
 }
 
 /// Errors from parsing [`DistroClamp`].
@@ -586,20 +586,65 @@ impl PartialEq for DistroClamp {
                 (Some(os), Some(info)) => {
                     let extra = Self::generate_extra(os, info);
 
-                    let self_clamp = if let Some(parent) = extra.distro_parent {
-                        DistroClamp::new(
+                    let self_clamp = if let Some(ref parent) = extra.distro_parent {
+                        &DistroClamp::new(
                             parent,
-                            extra
+                            &extra
                                 .distro_parent_vname
+                                .clone()
                                 .unwrap_or_else(|| extra.distro_version_name.to_string()),
                         )
+                        .unwrap()
                     } else {
-                        DistroClamp::new(extra.distro_name, extra.distro_version_name)
+                        self
                     };
 
-                    match self_clamp {
-                        Ok(self_cmp) => self_cmp == *other,
-                        Err(_) => basic_match,
+                    if other.distro == "*" {
+                        if other.version == extra.distro_version_number
+                            || other.version == extra.distro_version_name
+                            || other.version == extra.distro_version_number
+                            || other.version
+                                == extra.distro_parent_vname.unwrap_or(String::from(""))
+                        {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    } else if other.version == "*" {
+                        if other.distro == extra.distro_name
+                            || Some(other.distro.clone()) == extra.distro_parent
+                        {
+                            return true;
+                        } else {
+                            return false;
+                        }
+                    } else {
+                        if self_clamp
+                            == &DistroClamp::new(
+                                extra.distro_name.clone(),
+                                extra.distro_version_name,
+                            )
+                            .unwrap()
+                            || self_clamp
+                                == &DistroClamp::new(extra.distro_name, extra.distro_version_number)
+                                    .unwrap()
+                            || self_clamp
+                                == &DistroClamp::new(
+                                    extra.distro_parent.clone().unwrap_or("".into()),
+                                    extra.distro_parent_vname.unwrap_or("".into()),
+                                )
+                                .unwrap()
+                            || self_clamp
+                                == &DistroClamp::new(
+                                    extra.distro_parent.unwrap_or("".into()),
+                                    extra.distro_parent_number.unwrap_or("".into()),
+                                )
+                                .unwrap()
+                        {
+                            return true;
+                        } else {
+                            return false;
+                        }
                     }
                 }
                 _ => basic_match,
@@ -770,7 +815,7 @@ impl DistroClamp {
             distro_pretty_name: distro_pretty_name.to_string(),
             distro_parent: distro_parent.map(ToOwned::to_owned),
             distro_parent_vname: distro_parent_vname.as_deref().map(ToOwned::to_owned),
-            distro_parent_number: distro_parent_number.unwrap(),
+            distro_parent_number,
         }
     }
 }
