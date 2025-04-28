@@ -3,13 +3,24 @@ use thiserror::Error;
 
 use url::Url;
 
+/// Take a [`Url`] and attempt to find a matching (known) [`Metalink`] implementor.
+pub fn metalink(url: &Url) -> Option<Box<dyn Metalink>> {
+    if let Ok(github) = GitHubLink::from_url(url) {
+        return Some(Box::new(github));
+    }
+    if let Ok(gitlab) = GitLabLink::from_url(url) {
+        return Some(Box::new(gitlab));
+    }
+    if let Ok(pathbuf) = PathBuf::from_url(url) {
+        return Some(Box::new(pathbuf));
+    }
+    None
+}
+
 /// Abstracts different platforms into a consistent formatting.
 pub trait Metalink {
-    /// Error when trying to convert from [`Url`].
-    type Err;
-
     /// Attempt to convert from [`Url`].
-    fn from_url(url: &Url) -> Result<Self, Self::Err>
+    fn from_url(url: &Url) -> Result<Self, MetaLinkError>
     where
         Self: Sized;
 
@@ -27,10 +38,9 @@ pub trait Metalink {
     /// * <https://github.com/pacstall/pacstall> -> `pacstall/pacstall`
     /// * <https://git.sr.ht/~elsie/test> -> `elsie/test`
     fn user_repo(&self) -> String {
-        if let Some(branch) = self.branch() {
-            format!("{}/{}#{}", self.user(), self.repo(), branch)
-        } else {
-            format!("{}/{}", self.user(), self.repo())
+        match self.branch() {
+            Some("master") | Some("main") | None => format!("{}/{}", self.user(), self.repo()),
+            Some(branch) => format!("{}/{}#{}", self.user(), self.repo(), branch),
         }
     }
 
@@ -53,13 +63,14 @@ pub trait Metalink {
 
 /// Because we support file paths as "metalinks".
 impl Metalink for PathBuf {
-    type Err = ();
-
-    fn from_url(url: &Url) -> Result<Self, Self::Err>
+    fn from_url(url: &Url) -> Result<Self, MetaLinkError>
     where
         Self: Sized,
     {
-        url.to_file_path()
+        match url.to_file_path() {
+            Ok(o) => Ok(o),
+            Err(_) => Err(MetaLinkError::Empty),
+        }
     }
 
     fn pretty(&self) -> String {
@@ -98,7 +109,26 @@ impl Metalink for PathBuf {
 }
 
 /// GitHub metalink handling.
+#[derive(Debug, PartialEq, Eq)]
 pub struct GitHubLink {
+    url: Url,
+    repo: String,
+    user: String,
+    branch: String,
+}
+
+/// GitLab metalink handling.
+#[derive(Debug, PartialEq, Eq)]
+pub struct GitLabLink {
+    url: Url,
+    repo: String,
+    user: String,
+    branch: String,
+}
+
+/// SourceHut metalink handling.
+#[derive(Debug, PartialEq, Eq)]
+pub struct SourceHutLink {
     url: Url,
     repo: String,
     user: String,
@@ -123,9 +153,7 @@ pub enum MetaLinkError {
 }
 
 impl Metalink for GitHubLink {
-    type Err = MetaLinkError;
-
-    fn from_url(url: &Url) -> Result<Self, Self::Err>
+    fn from_url(url: &Url) -> Result<Self, MetaLinkError>
     where
         Self: Sized,
     {
@@ -174,5 +202,137 @@ impl Metalink for GitHubLink {
 
     fn branch(&self) -> Option<&str> {
         Some(&self.branch)
+    }
+}
+
+impl Metalink for GitLabLink {
+    fn from_url(url: &Url) -> Result<Self, MetaLinkError>
+    where
+        Self: Sized,
+    {
+        if let Some(domain) = url.domain() {
+            if domain != "gitlab.com" {
+                return Err(MetaLinkError::MismatchedPlatform {
+                    expected: String::from("gitlab.com"),
+                    got: domain.to_string(),
+                });
+            }
+        } else {
+            return Err(MetaLinkError::MissingDomain);
+        }
+
+        let path_segments = url
+            .path_segments()
+            .ok_or(MetaLinkError::Empty)?
+            .collect::<Vec<_>>();
+
+        if path_segments.len() != 5 {
+            return Err(MetaLinkError::Size {
+                expected: 5,
+                got: path_segments.len(),
+            });
+        }
+
+        Ok(Self {
+            url: url.clone(),
+            user: path_segments[0].to_string(),
+            repo: path_segments[1].to_string(),
+            branch: path_segments[4].to_string(),
+        })
+    }
+
+    fn platform(&self) -> &str {
+        "gitlab"
+    }
+
+    fn user(&self) -> &str {
+        &self.user
+    }
+
+    fn repo(&self) -> &str {
+        &self.repo
+    }
+
+    fn branch(&self) -> Option<&str> {
+        Some(&self.branch)
+    }
+}
+
+impl Metalink for SourceHutLink {
+    fn from_url(url: &Url) -> Result<Self, MetaLinkError>
+    where
+        Self: Sized,
+    {
+        if let Some(domain) = url.domain() {
+            if domain != "git.sr.ht" {
+                return Err(MetaLinkError::MismatchedPlatform {
+                    expected: String::from("git.sr.ht"),
+                    got: domain.to_string(),
+                });
+            }
+        } else {
+            return Err(MetaLinkError::MissingDomain);
+        }
+
+        let path_segments = url
+            .path_segments()
+            .ok_or(MetaLinkError::Empty)?
+            .collect::<Vec<_>>();
+
+        if path_segments.len() != 3 {
+            return Err(MetaLinkError::Size {
+                expected: 5,
+                got: path_segments.len(),
+            });
+        }
+
+        Ok(Self {
+            url: url.clone(),
+            user: path_segments[0]
+                .strip_prefix('~')
+                .unwrap_or(path_segments[0])
+                .to_string(),
+            repo: path_segments[1].to_string(),
+            branch: path_segments[3].to_string(),
+        })
+    }
+
+    fn platform(&self) -> &str {
+        "srht"
+    }
+
+    fn user(&self) -> &str {
+        &self.user
+    }
+
+    fn repo(&self) -> &str {
+        &self.repo
+    }
+
+    fn branch(&self) -> Option<&str> {
+        Some(&self.branch)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_github_metalink() {
+        let url = Url::parse("https://raw.githubusercontent.com/pacstall/pacstall-programs/master")
+            .unwrap();
+
+        let gh = GitHubLink::from_url(&url).unwrap();
+
+        assert_eq!(
+            gh,
+            GitHubLink {
+                url,
+                user: String::from("pacstall"),
+                repo: String::from("pacstall-programs"),
+                branch: String::from("master")
+            }
+        )
     }
 }

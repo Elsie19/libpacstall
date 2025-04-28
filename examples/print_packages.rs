@@ -5,7 +5,7 @@ use std::{
     io::{Cursor, Read},
 };
 
-use libpacstall::local::repos::PacstallRepos;
+use libpacstall::local::{metalink::metalink, repos::PacstallRepos};
 use reqwest::blocking;
 
 macro_rules! vte_format {
@@ -68,12 +68,16 @@ fn main() -> std::io::Result<()> {
     for pkg in pkgs {
         // The actual "search" part that checks if text matches.
         if pkg.0.contains(&args.keyword) {
-            let full_url = pkg
-                .1
-                .first()
-                .expect("Every package must have at least one repo it is coming from")
-                .to_string();
-            println!("{} @ {}", pkg.0, full_url);
+            let pretty_url = match metalink(
+                pkg.1
+                    .first()
+                    .expect("Every package must have at least one repo it is coming from")
+                    .url(),
+            ) {
+                Some(o) => o.pretty(),
+                None => pkg.1.first().unwrap().url().to_string(),
+            };
+            println!("{} @ {}", pkg.0, pretty_url);
         }
     }
 
