@@ -40,6 +40,16 @@ struct DistroCSV {
     eol_esm: Option<String>,
 }
 
+struct DistroClampExtra {
+    distro_name: String,
+    distro_version_name: String,
+    distro_version_number: String,
+    distro_pretty_name: String,
+    distro_parent: Option<String>,
+    distro_parent_vname: Option<String>,
+    distro_parent_number: String,
+}
+
 /// Errors from parsing [`DistroClamp`].
 #[derive(Debug, Error)]
 pub enum DistroClampError {
@@ -573,25 +583,24 @@ impl PartialEq for DistroClamp {
         } else {
             // These are the nuanced checks.
             match (&self.os_release, &self.info) {
-                (Some(_os), Some(info)) => {
-                    // Do distro version checks.
-                    // Do we have a case where self has a name and other has the equivalent version (or vise-versa)?
-                    if self.distro == other.distro && Self::release_version_eq(info, &other.version)
-                    {
-                        return true;
-                    }
+                (Some(os), Some(info)) => {
+                    let extra = Self::generate_extra(os, info);
 
-                    if Self::is_child(&self.distro, &other.distro)
-                        || Self::is_child(&other.distro, &self.distro)
-                    {
-                        if Self::release_version_eq(info, &other.version)
-                            || Self::release_version_eq(info, &self.version)
-                        {
-                            return true;
-                        }
-                    }
+                    let self_clamp = if let Some(parent) = extra.distro_parent {
+                        DistroClamp::new(
+                            parent,
+                            extra
+                                .distro_parent_vname
+                                .unwrap_or_else(|| extra.distro_version_name.to_string()),
+                        )
+                    } else {
+                        DistroClamp::new(extra.distro_name, extra.distro_version_name)
+                    };
 
-                    false
+                    match self_clamp {
+                        Ok(self_cmp) => self_cmp == *other,
+                        Err(_) => basic_match,
+                    }
                 }
                 _ => basic_match,
             }
@@ -674,23 +683,95 @@ impl DistroClamp {
         })
     }
 
-    /// Given a list of [`DistroCSV`], is `other` in it?
-    fn release_version_eq(info: &[DistroCSV], other: &str) -> bool {
-        info.iter()
-            .map(|entry| {
-                if let Some(version) = &entry.version {
-                    (version.as_str(), entry.series.as_str())
-                } else {
-                    (entry.series.as_str(), entry.series.as_str())
-                }
-            })
-            .any(|(version, codename)| *other == *version || *other == *codename)
-    }
+    fn generate_extra(os: &OsRelease, info: &[DistroCSV]) -> DistroClampExtra {
+        let distro_name = os.id();
+        let mut distro_version_name = os.version_codename().unwrap_or_default();
+        let mut distro_version_number = os.version_id().unwrap_or_default();
+        let distro_pretty_name = os.pretty_name();
+        let mut distro_parent = None;
+        let mut distro_parent_vname: Option<String> = None;
+        let mut distro_parent_number = None;
 
-    /// Some distros don't put in the work for us to figure out programatically what its parent is,
-    /// so we manually check the problematic ones here.
-    fn is_child(child: &str, parent: &str) -> bool {
-        matches!((child, parent), ("devuan", "debian") | ("kali", "debian"))
+        if os.get_value("DEBIAN_CODENAME").is_some() {
+            distro_parent = Some("debian");
+            distro_parent_vname = os.get_value("DEBIAN_CODENAME").map(ToOwned::to_owned);
+        } else if os.get_value("UBUNTU_CODENAME").is_some() {
+            distro_parent = Some("ubuntu");
+            distro_parent_vname = os.get_value("UBUNTU_CODENAME").map(ToOwned::to_owned);
+        }
+
+        if distro_name == "debian" {
+            if let Some(matched) = info
+                .iter()
+                .find(|entry| entry.series == distro_version_name)
+            {
+                if let Some(ver) = &matched.version {
+                    distro_version_number = ver;
+                }
+            }
+        } else if distro_name == "devuan" {
+            distro_parent = Some("debian");
+
+            if distro_version_name.ends_with(" ceres") {
+                let trimmed = distro_version_name
+                    .split_whitespace()
+                    .next()
+                    .unwrap_or_default();
+                distro_version_name = trimmed;
+                distro_parent_vname = Some("sid".to_string());
+            } else {
+                if let Ok(content) = std::fs::read_to_string("/etc/debian_version") {
+                    let debian_version = content.trim().to_string();
+                    if debian_version.contains('.') {
+                        if let Some(matched) = info.iter().find(|entry| {
+                            if let Some(ver) = &entry.version {
+                                ver == &debian_version.split('.').next().unwrap_or_default()
+                            } else {
+                                false
+                            }
+                        }) {
+                            distro_parent_vname = Some(matched.series.to_string());
+                        }
+                    } else {
+                        distro_parent_vname = Some(debian_version.to_string());
+                    }
+                }
+            }
+        }
+
+        if distro_pretty_name.ends_with("/sid") || distro_version_name == "kali-rolling" {
+            distro_parent = Some("debian");
+            distro_parent_vname = Some("sid".into());
+        }
+
+        if let Some(parent) = distro_parent {
+            if parent == "ubuntu"
+                && distro_version_name == distro_parent_vname.clone().unwrap_or_default()
+            {
+                distro_parent_vname = None;
+            } else {
+                if let Some(vname) = &distro_parent_vname {
+                    if let Some(matched) = info.iter().find(|entry| entry.series == *vname) {
+                        if let Some(ver) = &matched.version {
+                            distro_parent_number = Some(ver.replace(" LTS", ""));
+                        }
+                    }
+                }
+                if distro_parent_vname.as_deref() == Some("sid") {
+                    distro_parent_number = Some("sid".to_string());
+                }
+            }
+        }
+
+        DistroClampExtra {
+            distro_name: distro_name.to_string(),
+            distro_version_name: distro_version_name.to_string(),
+            distro_version_number: distro_version_number.to_string(),
+            distro_pretty_name: distro_pretty_name.to_string(),
+            distro_parent: distro_parent.map(ToOwned::to_owned),
+            distro_parent_vname: distro_parent_vname.as_deref().map(ToOwned::to_owned),
+            distro_parent_number: distro_parent_number.unwrap(),
+        }
     }
 }
 
