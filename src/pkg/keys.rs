@@ -716,53 +716,65 @@ impl DistroClamp {
         let mut distro_version_name = os.version_codename().unwrap_or_default();
         let mut distro_version_number = os.version_id().unwrap_or_default();
         let distro_pretty_name = os.pretty_name();
+
         let mut distro_parent = None;
-        let mut distro_parent_vname: Option<String> = None;
+        let mut distro_parent_vname = None;
         let mut distro_parent_number = None;
 
-        if os.get_value("DEBIAN_CODENAME").is_some() {
-            distro_parent = Some("debian");
-            distro_parent_vname = os.get_value("DEBIAN_CODENAME").map(ToOwned::to_owned);
-        } else if os.get_value("UBUNTU_CODENAME").is_some() {
-            distro_parent = Some("ubuntu");
-            distro_parent_vname = os.get_value("UBUNTU_CODENAME").map(ToOwned::to_owned);
+        match (
+            os.get_value("DEBIAN_CODENAME"),
+            os.get_value("UBUNTU_CODENAME"),
+        ) {
+            (Some(codename), _) => {
+                distro_parent = Some("debian");
+                distro_parent_vname = Some(codename.to_owned());
+            }
+            (None, Some(codename)) => {
+                distro_parent = Some("ubuntu");
+                distro_parent_vname = Some(codename.to_owned());
+            }
+            _ => {}
         }
 
-        if distro_name == "debian" {
-            if let Some(matched) = info
-                .iter()
-                .find(|entry| entry.series == distro_version_name)
-            {
-                if let Some(ver) = &matched.version {
-                    distro_version_number = ver;
-                }
-            }
-        } else if distro_name == "devuan" {
-            distro_parent = Some("debian");
-
-            if distro_version_name.ends_with(" ceres") {
-                let trimmed = distro_version_name
-                    .split_whitespace()
-                    .next()
-                    .unwrap_or_default();
-                distro_version_name = trimmed;
-                distro_parent_vname = Some("sid".to_string());
-            } else if let Ok(content) = std::fs::read_to_string("/etc/debian_version") {
-                let debian_version = content.trim().to_string();
-                if debian_version.contains('.') {
-                    if let Some(matched) = info.iter().find(|entry| {
-                        if let Some(ver) = &entry.version {
-                            ver == debian_version.split('.').next().unwrap_or_default()
-                        } else {
-                            false
-                        }
-                    }) {
-                        distro_parent_vname = Some(matched.series.to_string());
+        match distro_name {
+            "debian" => {
+                if let Some(matched) = info
+                    .iter()
+                    .find(|entry| entry.series == distro_version_name)
+                {
+                    if let Some(ver) = &matched.version {
+                        distro_version_number = ver;
                     }
-                } else {
-                    distro_parent_vname = Some(debian_version.to_string());
                 }
             }
+            "devuan" => {
+                distro_parent = Some("debian");
+
+                if distro_version_name.ends_with(" ceres") {
+                    let trimmed = distro_version_name
+                        .split_whitespace()
+                        .next()
+                        .unwrap_or_default();
+                    distro_version_name = trimmed;
+                    distro_parent_vname = Some("sid".to_string());
+                } else if let Ok(content) = std::fs::read_to_string("/etc/debian_version") {
+                    let debian_version = content.trim().to_string();
+                    if debian_version.contains('.') {
+                        if let Some(matched) = info.iter().find(|entry| {
+                            if let Some(ver) = &entry.version {
+                                ver == debian_version.split('.').next().unwrap_or_default()
+                            } else {
+                                false
+                            }
+                        }) {
+                            distro_parent_vname = Some(matched.series.to_string());
+                        }
+                    } else {
+                        distro_parent_vname = Some(debian_version.to_string());
+                    }
+                }
+            }
+            _ => {}
         }
 
         if distro_pretty_name.ends_with("/sid") || distro_version_name == "kali-rolling" {
