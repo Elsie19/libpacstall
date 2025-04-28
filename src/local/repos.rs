@@ -1,5 +1,5 @@
 use std::{
-    fmt::Display,
+    fmt::{Debug, Display},
     fs::File,
     io::{BufRead, BufReader, Read},
     ops::{Deref, DerefMut},
@@ -109,7 +109,7 @@ impl Display for PacstallRepos {
             if !first {
                 writeln!(f)?;
             }
-            write!(f, "{repo}")?;
+            write!(f, "{}", repo)?;
             first = false;
         }
         Ok(())
