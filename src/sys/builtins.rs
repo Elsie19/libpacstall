@@ -5,6 +5,10 @@ use brush_core::builtins::{BuiltinResult, ExitCode, SimpleCommand};
 use sprintf::{Printf, vsprintf};
 
 /// `fancy_message` implementation.
+///
+/// ```bash
+/// $ fancy_message info "Hello %s!\n" "$USER"
+/// ```
 pub struct FancyMessage;
 
 #[derive(PartialEq, Eq)]
@@ -53,7 +57,12 @@ impl SimpleCommand for FancyMessage {
             .into_iter()
             // Skip `$0`
             .skip(1)
-            .map(|str| str.as_ref().to_string())
+            .map(|str| {
+                str.as_ref()
+                    .to_string()
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+            })
             .collect();
         match args.len() {
             0 => {
@@ -98,6 +107,6 @@ impl SimpleCommand for FancyMessage {
         name: &str,
         _content_type: brush_core::builtins::ContentType,
     ) -> Result<String, brush_core::Error> {
-        Ok(name.into())
+        Ok(name.to_string())
     }
 }

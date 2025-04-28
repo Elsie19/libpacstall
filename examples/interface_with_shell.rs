@@ -16,8 +16,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .builtins
         .insert("fancy_message".into(), simple_builtin::<FancyMessage>());
 
-    println!("{}", text);
-
     shell
         .run_string(text, &ExecutionParameters::default())
         .await?;
