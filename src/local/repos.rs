@@ -68,7 +68,7 @@ pub enum RepoEntryError {
     MissingAtSign,
     #[error("too many parts")]
     TooManyParts,
-    #[error("parse error")]
+    #[error(transparent)]
     ParseError(#[from] url::ParseError),
     #[error("empty alias")]
     EmptyAlias,

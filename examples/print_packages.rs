@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::{
     collections::HashMap,
-    fs::File,
+    fs::{self, File},
     io::{Cursor, Read},
 };
 
@@ -44,12 +44,20 @@ fn main() -> std::io::Result<()> {
 
     for entry in repos {
         // For every entry we have in our repo list, get the packagelist.
-        let body = match blocking::get(format!("{}/packagelist", entry.url())) {
-            // Get the text of it.
-            Ok(body) => body.text().expect("Could not unwrap text"),
-            Err(e) => {
-                eprintln!("{e}");
-                continue;
+        let body = if entry.url().as_str().starts_with("file://") {
+            fs::read_to_string(format!(
+                "{}/packagelist",
+                entry.url().to_file_path().unwrap().to_string_lossy()
+            ))
+            .unwrap()
+        } else {
+            match blocking::get(format!("{}/packagelist", entry.url())) {
+                // Get the text of it.
+                Ok(body) => body.text().expect("Could not unwrap text"),
+                Err(e) => {
+                    eprintln!("{e}");
+                    continue;
+                }
             }
         };
 
