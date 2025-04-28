@@ -109,7 +109,7 @@ impl Display for PacstallRepos {
             if !first {
                 writeln!(f)?;
             }
-            write!(f, "{}", repo)?;
+            write!(f, "{repo}")?;
             first = false;
         }
         Ok(())
@@ -120,7 +120,7 @@ impl Display for PacstallRepos {
 impl Display for PacstallRepo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.alias {
-            Some(alias) => write!(f, "{} @{}", self.url, alias),
+            Some(alias) => write!(f, "{} @{alias}", self.url),
             None => write!(f, "{}", self.url),
         }
     }

@@ -4,6 +4,7 @@ use thiserror::Error;
 use url::Url;
 
 /// Take a [`Url`] and attempt to find a matching (known) [`Metalink`] implementor.
+#[must_use]
 pub fn metalink(url: &Url) -> Option<Box<dyn Metalink>> {
     if let Ok(github) = GitHubLink::from_url(url) {
         return Some(Box::new(github));
@@ -39,7 +40,7 @@ pub trait Metalink {
     /// * <https://git.sr.ht/~elsie/test> -> `elsie/test`
     fn user_repo(&self) -> String {
         match self.branch() {
-            Some("master") | Some("main") | None => format!("{}/{}", self.user(), self.repo()),
+            Some("master" | "main") | None => format!("{}/{}", self.user(), self.repo()),
             Some(branch) => format!("{}/{}#{}", self.user(), self.repo(), branch),
         }
     }
@@ -69,7 +70,7 @@ impl Metalink for PathBuf {
     {
         match url.to_file_path() {
             Ok(o) => Ok(o),
-            Err(_) => Err(MetaLinkError::Empty),
+            Err(()) => Err(MetaLinkError::Empty),
         }
     }
 
@@ -92,7 +93,7 @@ impl Metalink for PathBuf {
         String::new()
     }
 
-    fn user(&self) -> &str {
+    fn user(&self) -> &'static str {
         ""
     }
 
@@ -103,7 +104,7 @@ impl Metalink for PathBuf {
         }
     }
 
-    fn platform(&self) -> &str {
+    fn platform(&self) -> &'static str {
         "file"
     }
 }
@@ -188,7 +189,7 @@ impl Metalink for GitHubLink {
         })
     }
 
-    fn platform(&self) -> &str {
+    fn platform(&self) -> &'static str {
         "github"
     }
 
@@ -241,7 +242,7 @@ impl Metalink for GitLabLink {
         })
     }
 
-    fn platform(&self) -> &str {
+    fn platform(&self) -> &'static str {
         "gitlab"
     }
 
@@ -297,7 +298,7 @@ impl Metalink for SourceHutLink {
         })
     }
 
-    fn platform(&self) -> &str {
+    fn platform(&self) -> &'static str {
         "srht"
     }
 

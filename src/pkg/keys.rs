@@ -600,26 +600,14 @@ impl PartialEq for DistroClamp {
                     };
 
                     if other.distro == "*" {
-                        if other.version == extra.distro_version_number
+                        other.version == extra.distro_version_number
                             || other.version == extra.distro_version_name
-                            || other.version == extra.distro_version_number
-                            || other.version
-                                == extra.distro_parent_vname.unwrap_or(String::from(""))
-                        {
-                            return true;
-                        } else {
-                            return false;
-                        }
+                            || other.version == extra.distro_parent_vname.unwrap_or_default()
                     } else if other.version == "*" {
-                        if other.distro == extra.distro_name
+                        other.distro == extra.distro_name
                             || Some(other.distro.clone()) == extra.distro_parent
-                        {
-                            return true;
-                        } else {
-                            return false;
-                        }
                     } else {
-                        if self_clamp
+                        self_clamp
                             == &DistroClamp::new(
                                 extra.distro_name.clone(),
                                 extra.distro_version_name,
@@ -630,21 +618,16 @@ impl PartialEq for DistroClamp {
                                     .unwrap()
                             || self_clamp
                                 == &DistroClamp::new(
-                                    extra.distro_parent.clone().unwrap_or("".into()),
-                                    extra.distro_parent_vname.unwrap_or("".into()),
+                                    extra.distro_parent.clone().unwrap_or_default(),
+                                    extra.distro_parent_vname.unwrap_or_default(),
                                 )
                                 .unwrap()
                             || self_clamp
                                 == &DistroClamp::new(
-                                    extra.distro_parent.unwrap_or("".into()),
-                                    extra.distro_parent_number.unwrap_or("".into()),
+                                    extra.distro_parent.unwrap_or_default(),
+                                    extra.distro_parent_number.unwrap_or_default(),
                                 )
                                 .unwrap()
-                        {
-                            return true;
-                        } else {
-                            return false;
-                        }
                     }
                 }
                 _ => basic_match,
@@ -764,22 +747,20 @@ impl DistroClamp {
                     .unwrap_or_default();
                 distro_version_name = trimmed;
                 distro_parent_vname = Some("sid".to_string());
-            } else {
-                if let Ok(content) = std::fs::read_to_string("/etc/debian_version") {
-                    let debian_version = content.trim().to_string();
-                    if debian_version.contains('.') {
-                        if let Some(matched) = info.iter().find(|entry| {
-                            if let Some(ver) = &entry.version {
-                                ver == &debian_version.split('.').next().unwrap_or_default()
-                            } else {
-                                false
-                            }
-                        }) {
-                            distro_parent_vname = Some(matched.series.to_string());
+            } else if let Ok(content) = std::fs::read_to_string("/etc/debian_version") {
+                let debian_version = content.trim().to_string();
+                if debian_version.contains('.') {
+                    if let Some(matched) = info.iter().find(|entry| {
+                        if let Some(ver) = &entry.version {
+                            ver == debian_version.split('.').next().unwrap_or_default()
+                        } else {
+                            false
                         }
-                    } else {
-                        distro_parent_vname = Some(debian_version.to_string());
+                    }) {
+                        distro_parent_vname = Some(matched.series.to_string());
                     }
+                } else {
+                    distro_parent_vname = Some(debian_version.to_string());
                 }
             }
         }
