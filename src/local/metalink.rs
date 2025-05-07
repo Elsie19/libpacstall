@@ -110,7 +110,7 @@ impl Metalink for PathBuf {
 }
 
 /// GitHub metalink handling.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct GitHubLink {
     url: Url,
     repo: String,
@@ -119,7 +119,7 @@ pub struct GitHubLink {
 }
 
 /// GitLab metalink handling.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct GitLabLink {
     url: Url,
     repo: String,
@@ -128,7 +128,7 @@ pub struct GitLabLink {
 }
 
 /// SourceHut metalink handling.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct SourceHutLink {
     url: Url,
     repo: String,
