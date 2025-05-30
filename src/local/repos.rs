@@ -126,6 +126,12 @@ impl Display for PacstallRepo {
     }
 }
 
+impl PartialEq<Url> for PacstallRepo {
+    fn eq(&self, other: &Url) -> bool {
+        self.url == *other
+    }
+}
+
 impl Default for PacstallRepo {
     fn default() -> Self {
         Self {

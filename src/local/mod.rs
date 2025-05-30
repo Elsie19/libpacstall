@@ -6,3 +6,6 @@ pub mod repos;
 
 /// Metalink handling.
 pub mod metalink;
+
+/// Handles the packagelist format.
+pub mod pkglist;
