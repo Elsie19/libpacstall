@@ -285,6 +285,7 @@ impl VersionClamp {
     /// Generally, if this succeeds, you shouldn't have to worry about the [`Ordering`] return
     /// value, but if this fails, the [`Ordering`] value may be useful in error messages.
     #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn satisfied_by(&self, other: &Self) -> (bool, Ordering) {
         let order = self
             .version
@@ -644,6 +645,10 @@ impl DistroClamp {
     /// This should be used sparingly! The system's clamp should be created from
     /// [`DistroClamp::system`], and most incoming clamps will be in string format and will need to
     /// be `.parse()`ed.
+    ///
+    /// # Errors
+    ///
+    /// Will error if both `distro` and `version` are globs.
     ///
     /// # Examples
     ///

@@ -21,6 +21,10 @@ pub fn metalink(url: &Url) -> Option<Box<dyn Metalink>> {
 /// Abstracts different platforms into a consistent formatting.
 pub trait Metalink {
     /// Attempt to convert from [`Url`].
+    ///
+    /// # Errors
+    ///
+    /// Will error if the provided URL could not be parsed.
     fn from_url(url: &Url) -> Result<Self, MetaLinkError>
     where
         Self: Sized;

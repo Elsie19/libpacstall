@@ -36,7 +36,7 @@ use url::Url;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct PacstallRepos(Vec<PacstallRepo>);
 
 /// A repository entry with a URL and an optional alias.
@@ -283,6 +283,10 @@ impl PacstallRepo {
 
 impl PacstallRepos {
     /// Create new [`PacstallRepos`] from readable buffer.
+    ///
+    /// # Errors
+    ///
+    /// Will error if the repo file cannot be parsed properly.
     pub fn open<R: Read>(contents: R) -> Result<Self, RepoFileParseError> {
         Ok(Self(
             BufReader::new(contents)

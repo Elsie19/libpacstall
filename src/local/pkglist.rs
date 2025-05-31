@@ -15,17 +15,19 @@ macro_rules! vte_format {
 }
 
 /// Handle for converting repositories into [`PkgList`].
+#[derive(Clone, PartialEq, Eq)]
 pub struct Search(PacstallRepos);
 
 /// Holds the packagelist.
 ///
 /// An example `packagelist` can be found at <https://github.com/pacstall/pacstall-programs/blob/master/packagelist>.
-#[derive(Default)]
+#[derive(Default, Clone, PartialEq, Eq)]
 pub struct PkgList {
     contents: Vec<PkgBase>,
 }
 
 /// Holds a total package.
+#[derive(Clone, PartialEq, Eq)]
 pub struct PkgBase {
     pkgbase: String,
     packages: Vec<PackageReference>,
@@ -114,6 +116,10 @@ impl From<PacstallRepos> for Search {
 
 impl Search {
     /// Queries the remote `packagelist` and converts into a [`PkgList`].
+    ///
+    /// # Errors
+    ///
+    /// Will error if the `packagelist` is not reachable, unparsable, unopenable, or malformed.
     pub fn into_pkglist(self) -> Result<PkgList, GetPkglistError> {
         let mut pkglist = PkgList::default();
 
@@ -153,7 +159,7 @@ impl Search {
                             .contents
                             .iter_mut()
                             .find(|p| p.pkgbase == *pkg)
-                            .ok_or_else(|| GetPkglistError::MissingParent(pkg.to_string()))?;
+                            .ok_or_else(|| GetPkglistError::MissingParent((*pkg).to_string()))?;
 
                         parent.packages.push(PackageReference {
                             name: (*child).to_string(),
@@ -181,6 +187,7 @@ impl IntoIterator for PkgList {
 
 impl PkgList {
     /// Filter out packages by query.
+    #[must_use]
     pub fn filter_pkg<'a>(&'a self, search: &'a str) -> FilterPkg<'a> {
         FilterPkg {
             search,
@@ -200,12 +207,14 @@ impl IntoIterator for PkgBase {
 
 impl PkgBase {
     /// Does the package not have any child packages?
+    #[must_use]
     pub fn is_single(&self) -> bool {
         self.packages.len() == 1 && self.pkgbase == self.packages[0].name
     }
 }
 
-impl<'a> FilterPkg<'a> {
+impl FilterPkg<'_> {
+    #[must_use]
     pub fn entries(&self) -> Vec<PkgDisplayEntry> {
         let mut out = vec![];
 
@@ -226,8 +235,7 @@ impl<'a> FilterPkg<'a> {
 
             if !pkgbase.is_single() {
                 let source = metalink(&pkgbase.packages[0].repo)
-                    .map(|o| o.pretty())
-                    .unwrap_or_else(|| pkgbase.packages[0].pacscript.to_string());
+                    .map_or_else(|| pkgbase.packages[0].pacscript.to_string(), |o| o.pretty());
 
                 out.push(PkgDisplayEntry {
                     pkgbase: None,
@@ -237,9 +245,8 @@ impl<'a> FilterPkg<'a> {
             }
 
             for pkg in matches {
-                let source = metalink(&pkg.repo)
-                    .map(|o| o.pretty())
-                    .unwrap_or_else(|| pkg.pacscript.to_string());
+                let source =
+                    metalink(&pkg.repo).map_or_else(|| pkg.pacscript.to_string(), |o| o.pretty());
 
                 out.push(PkgDisplayEntry {
                     pkgbase: if pkgbase.is_single() {
@@ -272,13 +279,14 @@ impl Default for PackageColors {
 
 impl Display for PkgDisplayEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.color(PackageColors::default()))
+        write!(f, "{}", self.color(&PackageColors::default()))
     }
 }
 
 impl PkgDisplayEntry {
     /// Display package with given colors.
-    pub fn color(&self, color: PackageColors) -> ColoredString {
+    #[must_use]
+    pub fn color(&self, color: &PackageColors) -> ColoredString {
         if let Some(self_pkgbase) = &self.pkgbase {
             format!(
                 "{}{}{} {} {}",
