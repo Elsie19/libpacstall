@@ -1,32 +1,56 @@
-/// Generate a shell ready for sourcing pacscripts.
-///
-/// # Notes
-/// This will include things such as all variables declared in
-/// <https://github.com/pacstall/pacstall/wiki/101.1-Variables#built-in-variables>
-/// and `ask()` and [`fancy_message()`](`crate::sys::builtins::FancyMessage`).
-#[macro_export]
-macro_rules! pacstall_shell {
-    ($version:expr) => {{
-        let options = ::brush_core::CreateOptions {
-            shell_name: Some(String::from("pacstall_interpreter")),
-            shell_product_display_str: Some(format!("pacstall {}", $version)),
+use std::path::Path;
+
+use brush_core::{
+    CreateOptions, ExecutionParameters, ExecutionResult, Shell, ShellVariable,
+    builtins::simple_builtin,
+};
+
+use super::{
+    builtins::FancyMessage,
+    vars::{AsShellValue, PacstallVariables},
+};
+
+/// Handle for the environment that packages are built in.
+pub struct PacstallShell {
+    shell: Shell,
+}
+
+impl PacstallShell {
+    /// Creates a new shell from [`brush_core`] with pacstall related enhancements.
+    pub async fn new(version: &str) -> Result<Self, brush_core::Error> {
+        let options = CreateOptions {
+            shell_name: Some("pacstall_interpreter".to_string()),
+            shell_product_display_str: Some(format!("pacstall v{}", version)),
             ..Default::default()
         };
-        let mut shell = ::brush_core::Shell::new(&options).await?;
 
-        // TODO: Replace these with register_builtin and add_env_var later.
-        shell.builtins.insert(
-            "fancy_message".into(),
-            ::brush_core::builtins::simple_builtin::<$crate::sys::builtins::FancyMessage>(),
-        );
+        let mut shell = Shell::new(&options).await?;
 
-        shell.env.set_global(
-            "NCPU",
-            ::brush_core::ShellVariable::new(::brush_core::ShellValue::String(
-                $crate::sys::vars::ncpu().to_string(),
-            )),
-        )?;
+        shell.register_builtin("fancy_message", simple_builtin::<FancyMessage>());
 
-        shell
-    }};
+        // TODO: Add `homedir` $ (misc/scripts/package-base.sh:238).
+        // TODO: Add `pacfile` $ (misc/scripts/package-base.sh:244).
+        // TODO: Add `AARCH` $ (misc/scripts/package-base.sh:247).
+        // TODO: Add `CDISTRO` $ (misc/scripts/package-base.sh:253).
+        for (name, output) in PacstallVariables::generate() {
+            shell.set_env_global(name, ShellVariable::new(output.to_shellvalue()))?;
+        }
+
+        Ok(Self { shell })
+    }
+
+    // TODO: Add srcinfo.print_out $ (misc/scripts/package-base.sh:264).
+    /// Source a pacscript into the environment.
+    pub async fn load_pacscript<P: AsRef<Path>>(
+        &mut self,
+        pacscript: P,
+    ) -> Result<ExecutionResult, brush_core::Error> {
+        self.shell
+            .source_script(
+                pacscript.as_ref(),
+                std::iter::empty::<&str>(),
+                &ExecutionParameters::default(),
+            )
+            .await
+    }
 }

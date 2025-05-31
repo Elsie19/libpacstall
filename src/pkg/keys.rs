@@ -168,7 +168,7 @@ pub enum SourceURLType<'a> {
 }
 
 /// What part of repository to clone.
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Default, PartialEq, Eq, Clone, Copy)]
 pub enum GitTarget<'a> {
     /// Clone from branch.
     Branch(&'a str),
@@ -177,6 +177,7 @@ pub enum GitTarget<'a> {
     /// Clone from commit.
     Commit(&'a str),
     /// Clone from `HEAD`.
+    #[default]
     HEAD,
 }
 
@@ -417,12 +418,6 @@ impl Display for SourceURLType<'_> {
     }
 }
 
-impl Default for GitTarget<'_> {
-    fn default() -> Self {
-        Self::HEAD
-    }
-}
-
 impl<'a, I> ArchIterator<'a> for I
 where
     I: Iterator<Item = &'a Arch<'a>>,
@@ -439,6 +434,34 @@ where
     }
 }
 
+impl Display for Arch<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Arch::Any => "any",
+                Arch::All => "all",
+                Arch::Amd64 => "amd64",
+                Arch::Arm64 => "arm64",
+                Arch::Armel => "armel",
+                Arch::Armhf => "armhf",
+                Arch::I386 => "i386",
+                Arch::Mips64el => "mips64el",
+                Arch::Ppc64el => "ppc64el",
+                Arch::Riscv64 => "riscv64",
+                Arch::S390x => "s390x",
+                Arch::X86_64 => "x86_64",
+                Arch::Aarch64 => "aarch64",
+                Arch::Arm => "arm",
+                Arch::Armv7h => "armv7h",
+                Arch::I686 => "i686",
+                Arch::Other(other) => other,
+            }
+        )
+    }
+}
+
 impl Arch<'_> {
     /// Check if an [`Arch`] is an Arch Linux style architecture or a Debian style.
     #[must_use]
@@ -451,7 +474,7 @@ impl Arch<'_> {
 
     /// Get default architecture from system.
     #[must_use]
-    pub fn system_arch() -> Self {
+    pub fn host() -> Self {
         match std::env::consts::ARCH {
             "x86" => Self::I386,
             "x86_64" => Self::Amd64,

@@ -21,3 +21,6 @@ pub mod pkg;
 ///
 /// Many of these methods are used for generating values for variables to be used in the shell.
 pub mod sys;
+
+/// Handle the `.SRCINFO` spec + extras for pacstall.
+pub mod srcinfo;
