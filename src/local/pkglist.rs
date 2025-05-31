@@ -8,6 +8,12 @@ use url::Url;
 
 use super::{metalink::metalink, repos::PacstallRepos};
 
+macro_rules! vte_format {
+    ($link:expr, $($arg:tt)*) => {
+        format!("\x1b]8;;{}\x1b\\{}\x1b]8;;\x1b\\", $link, format!($($arg)*))
+    };
+}
+
 /// Handle for converting repositories into [`PkgList`].
 pub struct Search(PacstallRepos);
 
@@ -48,7 +54,7 @@ pub struct PkgDisplayEntry<'a> {
     pub pkgbase: Option<&'a str>,
     pub name: &'a str,
     // `source` comes from `metalink()`.
-    pub source: String,
+    pub source: (String, String),
 }
 
 /// Errors arising from trying to get and parse a `packagelist`.
@@ -90,6 +96,14 @@ pub enum GetPkglistError {
     /// ```
     #[error("missing parent pkgbase for: `{0}`")]
     MissingParent(String),
+}
+
+/// Colors for formatting [`PkgDisplayEntry`].
+pub struct PackageColors {
+    pub pkgbase: Color,
+    pub package: Color,
+    pub at_sign: Color,
+    pub source: Color,
 }
 
 impl From<PacstallRepos> for Search {
@@ -222,7 +236,7 @@ impl<'a> FilterPkg<'a> {
                         Some(pkg_pkgbase)
                     },
                     name: pkg.name.as_str(),
-                    source,
+                    source: (source, pkg.pacscript.to_string()),
                 });
             }
         }
@@ -233,35 +247,42 @@ impl<'a> FilterPkg<'a> {
     }
 }
 
+impl Default for PackageColors {
+    fn default() -> Self {
+        Self {
+            pkgbase: Color::Green,
+            package: Color::Green,
+            at_sign: Color::Magenta,
+            source: Color::Cyan,
+        }
+    }
+}
+
 impl Display for PkgDisplayEntry<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.color(Color::Green, Color::Green, Color::Magenta, Color::Cyan)
-        )
+        write!(f, "{}", self.color(PackageColors::default()))
     }
 }
 
 impl PkgDisplayEntry<'_> {
     /// Display package with given colors.
-    pub fn color(&self, pkgbase: Color, package: Color, at: Color, repo: Color) -> ColoredString {
+    pub fn color(&self, color: PackageColors) -> ColoredString {
         if let Some(self_pkgbase) = self.pkgbase {
             format!(
                 "{}{}{} {} {}",
-                self_pkgbase.color(pkgbase),
-                ":".color(pkgbase),
-                self.name.color(package),
-                "@".color(at),
-                self.source.color(repo)
+                self_pkgbase.color(color.pkgbase),
+                ":".color(color.pkgbase),
+                self.name.color(color.package),
+                "@".color(color.at_sign),
+                vte_format!(self.source.1, "{}", self.source.0.color(color.source))
             )
             .into()
         } else {
             format!(
                 "{} {} {}",
-                self.name.color(package),
-                "@".color(at),
-                self.source.color(repo)
+                self.name.color(color.package),
+                "@".color(color.at_sign),
+                vte_format!(self.source.1, "{}", self.source.0.color(color.source))
             )
             .into()
         }
