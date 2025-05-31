@@ -50,9 +50,9 @@ pub struct FilterPkg<'a> {
 }
 
 /// Pretty format for package entries.
-pub struct PkgDisplayEntry<'a> {
-    pub pkgbase: Option<&'a str>,
-    pub name: &'a str,
+pub struct PkgDisplayEntry {
+    pub pkgbase: Option<String>,
+    pub name: String,
     // `source` comes from `metalink()`.
     pub source: (String, String),
 }
@@ -206,7 +206,7 @@ impl PkgBase {
 }
 
 impl<'a> FilterPkg<'a> {
-    pub fn entries(&self) -> Vec<PkgDisplayEntry<'a>> {
+    pub fn entries(&self) -> Vec<PkgDisplayEntry> {
         let mut out = vec![];
 
         for pkgbase in self.pkgs {
@@ -224,6 +224,18 @@ impl<'a> FilterPkg<'a> {
 
             matches.sort_by(|a, b| a.name.cmp(&b.name));
 
+            if !pkgbase.is_single() {
+                let source = metalink(&pkgbase.packages[0].repo)
+                    .map(|o| o.pretty())
+                    .unwrap_or_else(|| pkgbase.packages[0].pacscript.to_string());
+
+                out.push(PkgDisplayEntry {
+                    pkgbase: None,
+                    name: format!("{}:pkgbase", pkgbase.pkgbase),
+                    source: (source, pkgbase.packages[0].pacscript.to_string()),
+                });
+            }
+
             for pkg in matches {
                 let source = metalink(&pkg.repo)
                     .map(|o| o.pretty())
@@ -233,15 +245,15 @@ impl<'a> FilterPkg<'a> {
                     pkgbase: if pkgbase.is_single() {
                         None
                     } else {
-                        Some(pkg_pkgbase)
+                        Some(pkg_pkgbase.to_string())
                     },
-                    name: pkg.name.as_str(),
+                    name: pkg.name.clone(),
                     source: (source, pkg.pacscript.to_string()),
                 });
             }
         }
 
-        out.sort_by(|a, b| a.name.cmp(b.name));
+        out.sort_by(|a, b| a.name.cmp(&b.name));
 
         out
     }
@@ -258,16 +270,16 @@ impl Default for PackageColors {
     }
 }
 
-impl Display for PkgDisplayEntry<'_> {
+impl Display for PkgDisplayEntry {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.color(PackageColors::default()))
     }
 }
 
-impl PkgDisplayEntry<'_> {
+impl PkgDisplayEntry {
     /// Display package with given colors.
     pub fn color(&self, color: PackageColors) -> ColoredString {
-        if let Some(self_pkgbase) = self.pkgbase {
+        if let Some(self_pkgbase) = &self.pkgbase {
             format!(
                 "{}{}{} {} {}",
                 self_pkgbase.color(color.pkgbase),
