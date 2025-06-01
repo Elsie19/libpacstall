@@ -1,3 +1,5 @@
+// Created originally by <https://github.com/D-Brox>.
+
 use nom::{
     IResult, Parser,
     bytes::complete::{tag, take_until, take_until1, take_while1},
@@ -6,6 +8,8 @@ use nom::{
     multi::{many0, separated_list0},
     sequence::preceded,
 };
+
+use crate::pkg::keys::{Arch, DistroClamp, Maintainer};
 
 /// A representation of an `.SRCINFO` file.
 #[derive(Debug, Default)]
@@ -18,16 +22,12 @@ pub struct SrcInfo {
 pub struct PkgBase {
     pub pkgbase: String,
     pub pkgver: String,
-    pub pkgrel: String,
-    pub epoch: String,
+    pub pkgrel: usize,
+    pub epoch: usize,
     pub mask: Vec<String>,
-    /// See [`DistroClamp`][`super::pkg::keys::DistroClamp`].
-    pub compatible: Vec<String>,
-    /// See [`DistroClamp`][`super::pkg::keys::DistroClamp`].
-    pub incompatible: Vec<String>,
-    /// See [`Maintainer`][`super::pkg::keys::Maintainer`].
-    pub maintainer: Vec<String>,
-    /// See [`SourceEntry`][`super::pkg::keys::SourceEntry`].
+    pub compatible: Vec<DistroClamp>,
+    pub incompatible: Vec<DistroClamp>,
+    pub maintainer: Vec<Maintainer>,
     pub source: Vec<(ArchDistro, String)>,
     pub noextract: Vec<String>,
     pub nosubmodules: Vec<String>,
@@ -44,7 +44,7 @@ pub struct PkgBase {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ArchDistro {
-    pub arch: Option<String>,
+    pub arch: Option<Arch>,
     pub distro: Option<String>,
 }
 
@@ -54,7 +54,7 @@ pub struct PkgInfo {
     pub pkgdesc: String,
     pub url: String,
     pub priority: String,
-    pub arch: Vec<String>,
+    pub arch: Vec<Arch>,
     pub license: Vec<String>,
 
     pub gives: Vec<(ArchDistro, String)>,
@@ -79,7 +79,7 @@ impl SrcInfo {
     #[must_use]
     pub fn version(&self) -> String {
         let base = &self.pkgbase;
-        if base.epoch.is_empty() {
+        if base.epoch != 0 {
             format!("{}:{}-{}", base.epoch, base.pkgver, base.pkgrel)
         } else {
             format!("{}-{}", base.pkgver, base.pkgrel)
@@ -122,12 +122,22 @@ impl SrcInfo {
             match base_key.as_str() {
                 "pkgbase" => set!(pkgbase = value),
                 "pkgver" => set!(pkgver = value),
-                "pkgrel" => set!(pkgrel = value),
-                "epoch" => set!(epoch = value),
+                "pkgrel" => {
+                    set!(pkgrel = value.parse::<usize>().expect("Could not convert to usize"))
+                }
+                "epoch" => {
+                    set!(epoch = value.parse::<usize>().expect("Could not convert to usize"))
+                }
                 "mask" => set!(mask + value),
-                "compatible" => set!(compatible + value),
-                "incompatible" => set!(incompatible + value),
-                "maintainer" => set!(maintainer + value),
+                "compatible" => {
+                    set!(compatible + value.parse().expect("Could not convert to distroclamp"))
+                }
+                "incompatible" => {
+                    set!(incompatible + value.parse().expect("Could not convert to distroclamp"))
+                }
+                "maintainer" => {
+                    set!(maintainer + value.parse().expect("Could not convert to maintainer"))
+                }
                 "noextract" => set!(noextract + value),
                 "nosubmodules" => set!(nosubmodules + value),
 
@@ -153,7 +163,7 @@ impl SrcInfo {
                 "pkgdesc" => set!(pkgdesc &= value),
                 "url" => set!(url &= value),
                 "priority" => set!(priority &= value),
-                "arch" => set!(arch &+ value),
+                "arch" => set!(arch &+ value.into()),
                 "license" => set!(license &+ value),
                 "backup" => set!(backup &+ value),
                 "repology" => set!(repology &+ value),
@@ -197,14 +207,14 @@ fn parse_key_value(input: &str) -> IResult<&str, (String, String)> {
     Ok((input, (key.to_string(), value.trim().to_string())))
 }
 
-fn split_key_arch(arches: &[String], key: &str) -> (String, ArchDistro) {
+fn split_key_arch(arches: &[Arch], key: &str) -> (String, ArchDistro) {
     let split_key: Vec<_> = key.split('_').collect();
     match split_key.len() {
         2 => (
             split_key[0].to_string(),
-            if arches.contains(&split_key[1].to_string()) {
+            if arches.contains(&split_key[1].to_string().into()) {
                 ArchDistro {
-                    arch: Some(split_key[1].to_string()),
+                    arch: Some(split_key[1].to_string().into()),
                     ..Default::default()
                 }
             } else {
@@ -217,7 +227,7 @@ fn split_key_arch(arches: &[String], key: &str) -> (String, ArchDistro) {
         3 => (
             split_key[0].to_string(),
             ArchDistro {
-                arch: Some(split_key[1].to_string()),
+                arch: Some(split_key[1].to_string().into()),
                 distro: Some(split_key[2].to_string()),
             },
         ),
@@ -307,7 +317,7 @@ depends = openssl
             parsed
                 .packages
                 .iter()
-                .all(|p| p.arch == vec!["amd64", "aarch64"])
+                .all(|p| p.arch == vec![Arch::Amd64, Arch::Aarch64])
         );
         assert_eq!(
             parsed.pkgbase.source.first().unwrap(),
@@ -317,7 +327,7 @@ depends = openssl
             parsed.pkgbase.source.get(1).unwrap(),
             &(
                 ArchDistro {
-                    arch: Some("amd64".to_string()),
+                    arch: Some(Arch::Amd64),
                     distro: None
                 },
                 "specialfile-x86_64.tar.gz".to_string()
@@ -327,7 +337,7 @@ depends = openssl
             parsed.pkgbase.source.get(2).unwrap(),
             &(
                 ArchDistro {
-                    arch: Some("aarch64".to_string()),
+                    arch: Some(Arch::Aarch64),
                     distro: None
                 },
                 "specialfile-aarch64.tar.gz".to_string()

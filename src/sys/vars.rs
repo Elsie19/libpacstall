@@ -71,7 +71,7 @@ impl PacstallVariables<'_> {
 
     /// Get system architecture.
     #[must_use]
-    fn carch() -> Arch<'static> {
+    fn carch() -> Arch {
         Arch::host()
     }
 

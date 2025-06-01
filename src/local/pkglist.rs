@@ -120,7 +120,7 @@ impl Search {
     /// # Errors
     ///
     /// Will error if the `packagelist` is not reachable, unparsable, unopenable, or malformed.
-    pub fn into_pkglist(self) -> Result<PkgList, GetPkglistError> {
+    pub async fn into_pkglist(self) -> Result<PkgList, GetPkglistError> {
         let mut pkglist = PkgList::default();
 
         for entry in self.0 {
@@ -130,7 +130,7 @@ impl Search {
                 fs::read_to_string(list_path)?
             } else {
                 let url = format!("{url}/packagelist");
-                reqwest::blocking::get(&url)?.text()?
+                reqwest::get(&url).await?.text().await?
             };
 
             for pkg_entry in list.trim().lines() {

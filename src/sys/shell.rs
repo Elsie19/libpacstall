@@ -12,7 +12,7 @@ use super::{
 
 /// Handle for the environment that packages are built in.
 pub struct PacstallShell {
-    shell: Shell,
+    pub shell: Shell,
 }
 
 impl PacstallShell {
@@ -52,5 +52,9 @@ impl PacstallShell {
                 &ExecutionParameters::default(),
             )
             .await
+    }
+
+    pub fn has_variable(&self, var: &str) -> Option<&ShellVariable> {
+        self.shell.get_env_var(var)
     }
 }

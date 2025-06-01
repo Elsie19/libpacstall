@@ -4,6 +4,7 @@ use std::{cmp::Ordering, fmt::Display, path::PathBuf, str::FromStr};
 use debversion::Version;
 use etc_os_release::OsRelease;
 use serde::Deserialize;
+use strum_macros::EnumIter;
 use thiserror::Error;
 use url::Url;
 
@@ -22,22 +23,22 @@ pub struct DistroClamp {
     distro: String,
     version: String,
     os_release: Option<OsRelease>,
-    info: Option<Vec<DistroCSV>>,
+    pub info: Option<Vec<DistroCSV>>,
 }
 
 /// Deserialization for `/usr/share/distro-info/*.csv`.
 #[derive(Debug, Clone, Deserialize)]
-struct DistroCSV {
-    version: Option<String>,
-    codename: String,
-    series: String,
-    created: String,
-    release: String,
-    eol: String,
+pub struct DistroCSV {
+    pub version: Option<String>,
+    pub codename: String,
+    pub series: String,
+    pub created: String,
+    pub release: String,
+    pub eol: String,
     #[serde(alias = "eol-lts", alias = "eol-server", default)]
-    eol_server: Option<String>,
+    pub eol_server: Option<String>,
     #[serde(alias = "eol-esm", alias = "eol-elts", default)]
-    eol_esm: Option<String>,
+    pub eol_esm: Option<String>,
 }
 
 struct DistroClampExtra {
@@ -97,8 +98,8 @@ pub enum DistroClampError {
 /// let my_same_archs = vec![Arch::Amd64, Arch::I386];
 /// assert!(my_same_archs.iter().allowed());
 /// ```
-#[derive(Debug, Eq, Clone, Copy)]
-pub enum Arch<'a> {
+#[derive(Debug, PartialEq, Eq, Clone, EnumIter)]
+pub enum Arch {
     /// Package can be compiled on *any* system, but will only run on the compiled architecture.
     Any,
     /// Package can run on *all* systems, regardless of architecture.
@@ -119,7 +120,7 @@ pub enum Arch<'a> {
     Armv7h,
     I686,
     /// Custom architecture not known by pacstall.
-    Other(&'a str),
+    Other(String),
 }
 
 /// Adds [`ArchIterator::allowed`] to any iterator that iterates over [`Arch`].
@@ -134,10 +135,16 @@ pub trait ArchIterator<'a> {
 }
 
 /// Maintainer schema.
-#[derive(PartialEq, Eq, Clone, Copy)]
-pub struct Maintainer<'a> {
-    name: &'a str,
-    email: &'a str,
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Maintainer {
+    name: String,
+    email: String,
+}
+
+#[derive(Debug, Error)]
+pub enum MaintainerParseError {
+    #[error("could not split string: `{0}`")]
+    NoSplit(String),
 }
 
 /// Source entry schema.
@@ -277,7 +284,7 @@ impl VersionClamp {
     /// An [`Option::None`] value for `cmp` indicates that any version provided can satisfy the
     /// package, generally used for when you want "just the package".
     #[must_use]
-    pub fn new(cmp: Option<VerCmp>, version: Version) -> Self {
+    pub const fn new(cmp: Option<VerCmp>, version: Version) -> Self {
         Self { cmp, version }
     }
 
@@ -420,7 +427,7 @@ impl Display for SourceURLType<'_> {
 
 impl<'a, I> ArchIterator<'a> for I
 where
-    I: Iterator<Item = &'a Arch<'a>>,
+    I: Iterator<Item = &'a Arch>,
 {
     fn allowed(self) -> bool {
         let mut peekable_iter = self.peekable();
@@ -434,7 +441,31 @@ where
     }
 }
 
-impl Display for Arch<'_> {
+impl From<String> for Arch {
+    fn from(value: String) -> Self {
+        match value.to_lowercase().as_str() {
+            "any" => Arch::Any,
+            "all" => Arch::All,
+            "amd64" => Arch::Amd64,
+            "arm64" => Arch::Arm64,
+            "armel" => Arch::Armel,
+            "armhf" => Arch::Armhf,
+            "i386" => Arch::I386,
+            "mips64el" => Arch::Mips64el,
+            "ppc64el" => Arch::Ppc64el,
+            "riscv64" => Arch::Riscv64,
+            "s390x" => Arch::S390x,
+            "x86_64" => Arch::X86_64,
+            "aarch64" => Arch::Aarch64,
+            "arm" => Arch::Arm,
+            "armv7h" => Arch::Armv7h,
+            "i686" => Arch::I686,
+            other => Arch::Other(other.to_string()),
+        }
+    }
+}
+
+impl Display for Arch {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -462,10 +493,10 @@ impl Display for Arch<'_> {
     }
 }
 
-impl Arch<'_> {
+impl Arch {
     /// Check if an [`Arch`] is an Arch Linux style architecture or a Debian style.
     #[must_use]
-    pub fn is_arch_style(&self) -> bool {
+    pub const fn is_arch_style(&self) -> bool {
         matches!(
             self,
             Self::X86_64 | Self::Aarch64 | Self::Arm | Self::Armv7h | Self::I686
@@ -484,13 +515,12 @@ impl Arch<'_> {
             "powerpc64" => Self::Ppc64el,
             "riscv64" => Self::Riscv64,
             "s390x" => Self::S390x,
-            default => Self::Other(default),
+            default => Self::Other(default.to_owned()),
         }
     }
-}
 
-impl PartialEq for Arch<'_> {
-    fn eq(&self, other: &Self) -> bool {
+    /// Is this architecture compatible with another?
+    pub fn compatible(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Arm64, Self::Aarch64)
             | (Self::Aarch64, Self::Arm64)
@@ -507,7 +537,7 @@ impl PartialEq for Arch<'_> {
     }
 }
 
-impl<'a> Maintainer<'a> {
+impl Maintainer {
     /// Make new maintainer key.
     ///
     /// # Examples
@@ -517,20 +547,42 @@ impl<'a> Maintainer<'a> {
     /// let my_maintainer = Maintainer::new("Elsie", "hwengerstickel@pm.me");
     /// ```
     #[must_use]
-    pub fn new(name: &'a str, email: &'a str) -> Self {
-        Self { name, email }
+    pub fn new<S: Into<String>>(name: S, email: S) -> Self {
+        Self {
+            name: name.into(),
+            email: email.into(),
+        }
     }
 
     /// Get name from [`Maintainer`].
     #[must_use]
     pub fn name(&self) -> &str {
-        self.name
+        &self.name
     }
 
     /// Get email from [`Maintainer`].
     #[must_use]
     pub fn email(&self) -> &str {
-        self.email
+        &self.email
+    }
+}
+
+impl FromStr for Maintainer {
+    type Err = MaintainerParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.split_once('<') {
+            Some((first, last)) => {
+                let first = first.trim();
+
+                let mut last = last.chars();
+                last.next_back();
+                let email = last.as_str();
+
+                Ok(Self::new(first, email))
+            }
+            None => Err(MaintainerParseError::NoSplit(s.to_string())),
+        }
     }
 }
 
@@ -538,7 +590,7 @@ impl<'a> Maintainer<'a> {
 /// <https://www.rfc-editor.org/rfc/rfc5322#section-3.4>.
 ///
 /// Its expected to look like `$name <$email>`.
-impl Display for Maintainer<'_> {
+impl Display for Maintainer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} <{}>", self.name, self.email)
     }
