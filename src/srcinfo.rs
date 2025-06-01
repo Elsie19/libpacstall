@@ -18,6 +18,7 @@ pub struct SrcInfo {
     pub packages: Vec<PkgInfo>,
 }
 
+/// Keys paired to a global package.
 #[derive(Debug, Default, Clone)]
 pub struct PkgBase {
     pub pkgbase: String,
@@ -42,12 +43,14 @@ pub struct PkgBase {
     pub makeconflicts: Vec<(ArchDistro, String)>,
 }
 
+/// An architecture and a distro, usually paired in a tuple with a key.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ArchDistro {
     pub arch: Option<Arch>,
     pub distro: Option<String>,
 }
 
+/// Keys paired with a specific package.
 #[derive(Debug, Default, Clone)]
 pub struct PkgInfo {
     pub pkgname: String,
@@ -235,6 +238,12 @@ fn split_key_arch(arches: &[Arch], key: &str) -> (String, ArchDistro) {
     }
 }
 
+/// Parse an `srclist` file.
+///
+/// The difference between an `.SRCINFO` file and `srclist` is that `srclist` is a collection of
+/// `.SRCINFO` separated by `---`.
+///
+/// See <https://github.com/pacstall/pacstall-programs/blob/master/srclist>.
 pub fn parse_srclist(input: &str) -> IResult<&str, Vec<SrcInfo>> {
     let (input, _) = (many0(parse_comment), multispace0, tag("---\n")).parse(input)?;
     separated_list0(tag("---\n"), SrcInfo::parse).parse(input)

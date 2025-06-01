@@ -30,7 +30,6 @@ impl PacstallShell {
 
         // TODO: Add `homedir` $ (misc/scripts/package-base.sh:238).
         // TODO: Add `pacfile` $ (misc/scripts/package-base.sh:244).
-        // TODO: Add `AARCH` $ (misc/scripts/package-base.sh:247).
         // TODO: Add `CDISTRO` $ (misc/scripts/package-base.sh:253).
         for (name, output) in PacstallVariables::generate() {
             shell.set_env_global(name, ShellVariable::new(output.to_shellvalue()))?;

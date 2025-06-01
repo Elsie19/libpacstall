@@ -51,6 +51,11 @@ impl PacstallVariables<'_> {
             vars: vec![
                 ("NCPU", Self::ncpu(&sysinfo).to_string()),
                 ("CARCH", Self::carch().to_string()),
+                ("AARCH", match Self::carch() {
+                    Arch::Armhf => Arch::Armv7h,
+                    Arch::I386 => Arch::I686,
+                    default => default,
+                }.to_string()),
                 ("DISTRO", Self::distro().to_string()),
                 ("KVER", Self::kver()),
             ],

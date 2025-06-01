@@ -98,7 +98,7 @@ pub enum DistroClampError {
 /// let my_same_archs = vec![Arch::Amd64, Arch::I386];
 /// assert!(my_same_archs.iter().allowed());
 /// ```
-#[derive(Debug, PartialEq, Eq, Clone, EnumIter)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, EnumIter)]
 pub enum Arch {
     /// Package can be compiled on *any* system, but will only run on the compiled architecture.
     Any,
@@ -135,7 +135,7 @@ pub trait ArchIterator<'a> {
 }
 
 /// Maintainer schema.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Maintainer {
     name: String,
     email: String,
@@ -148,7 +148,7 @@ pub enum MaintainerParseError {
 }
 
 /// Source entry schema.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub struct SourceEntry<'a> {
     /// Destination (`dest::`).
     pub dest: Option<PathBuf>,
@@ -159,7 +159,7 @@ pub struct SourceEntry<'a> {
 }
 
 /// Type of [`SourceEntry`] URL.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone)]
 pub enum SourceURLType<'a> {
     /// Git URL.
     Git {
@@ -175,7 +175,7 @@ pub enum SourceURLType<'a> {
 }
 
 /// What part of repository to clone.
-#[derive(Default, PartialEq, Eq, Clone, Copy)]
+#[derive(Default, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum GitTarget<'a> {
     /// Clone from branch.
     Branch(&'a str),
@@ -194,7 +194,7 @@ pub enum GitTarget<'a> {
 ///
 /// This will not attempt to verify that the given sums list is compatible with the given [`HashSumType`].
 /// The caller should verify this before instantiation.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Hash)]
 pub struct HashSums {
     hasher: HashSumType,
     // The reason why this is `Option<String>` is because we need to represent `SKIP` somehow and we
@@ -203,7 +203,7 @@ pub struct HashSums {
 }
 
 /// Type of sum used.
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub enum HashSumType {
     Sha256,
     Sha512,
@@ -222,7 +222,7 @@ pub struct VersionClamp {
 }
 
 /// Version comparisons for [`Version`].
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub enum VerCmp {
     /// Equal (`==`).
     Eq,
@@ -234,6 +234,39 @@ pub enum VerCmp {
     Le,
     /// Greater-or-equal-than (`>=`).
     Ge,
+}
+
+/// Priority in packages.
+///
+/// See [priority](https://www.debian.org/doc/debian-policy/ch-archive.html#s-priorities).
+#[derive(Default, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
+pub enum Priority {
+    Essential,
+    /// Packages which are necessary for the proper functioning of the system.
+    Required,
+    /// Important programs, including those which one would expect to find on any Unix-like system.
+    Important,
+    /// These packages provide a reasonably small but not too limited character-mode system.
+    Standard,
+    /// This is the default priority for the majority of packages.
+    #[default]
+    Optional,
+}
+
+impl Display for Priority {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Priority::Essential => "essential",
+                Priority::Required => "required",
+                Priority::Important => "important",
+                Priority::Standard => "standard",
+                Priority::Optional => "optional",
+            }
+        )
+    }
 }
 
 impl PartialOrd for VersionClamp {
