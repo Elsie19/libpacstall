@@ -9,7 +9,7 @@ use nom::{
     sequence::preceded,
 };
 
-use crate::pkg::keys::{Arch, DistroClamp, Maintainer};
+use crate::pkg::keys::{Arch, DistroClamp, Maintainer, Priority};
 
 /// A representation of an `.SRCINFO` file.
 #[derive(Debug, Default)]
@@ -56,7 +56,7 @@ pub struct PkgInfo {
     pub pkgname: String,
     pub pkgdesc: String,
     pub url: String,
-    pub priority: String,
+    pub priority: Priority,
     pub arch: Vec<Arch>,
     pub license: Vec<String>,
 
@@ -165,7 +165,7 @@ impl SrcInfo {
 
                 "pkgdesc" => set!(pkgdesc &= value),
                 "url" => set!(url &= value),
-                "priority" => set!(priority &= value),
+                "priority" => set!(priority &= value.into()),
                 "arch" => set!(arch &+ value.into()),
                 "license" => set!(license &+ value),
                 "backup" => set!(backup &+ value),

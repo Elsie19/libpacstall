@@ -1,6 +1,6 @@
 [package]
 name = "libpacstall"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 authors = ["Elsie <hwengerstickel@pm.me>"]
 description = "Backend API library for Pacstall"

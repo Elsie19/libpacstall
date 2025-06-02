@@ -239,7 +239,7 @@ pub enum VerCmp {
 /// Priority in packages.
 ///
 /// See [priority](https://www.debian.org/doc/debian-policy/ch-archive.html#s-priorities).
-#[derive(Default, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
+#[derive(Default, Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub enum Priority {
     Essential,
     /// Packages which are necessary for the proper functioning of the system.
@@ -251,6 +251,47 @@ pub enum Priority {
     /// This is the default priority for the majority of packages.
     #[default]
     Optional,
+}
+
+/// Wrapper for an `optdepend` key.
+#[derive(Default, Debug, PartialEq, Eq, Clone, Hash)]
+pub struct OptDescription {
+    pkg: String,
+    desc: Option<String>,
+}
+
+impl Display for OptDescription {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            if let Some(desc) = &self.desc {
+                format!("{}: {desc}", self.pkg)
+            } else {
+                self.pkg.to_string()
+            }
+        )
+    }
+}
+
+impl From<String> for OptDescription {
+    fn from(value: String) -> Self {
+        if let Some(index) = value.rfind(':') {
+            let pkg = value[..index].trim().to_string();
+            let desc = value[index + 1..].trim();
+            let desc = if desc.is_empty() {
+                None
+            } else {
+                Some(desc.to_string())
+            };
+            Self { pkg, desc }
+        } else {
+            Self {
+                pkg: value.trim().to_string(),
+                desc: None,
+            }
+        }
+    }
 }
 
 impl Display for Priority {
@@ -266,6 +307,18 @@ impl Display for Priority {
                 Priority::Optional => "optional",
             }
         )
+    }
+}
+
+impl From<String> for Priority {
+    fn from(value: String) -> Self {
+        match value.to_lowercase().as_str() {
+            "essential" => Self::Essential,
+            "required" => Self::Required,
+            "important" => Self::Important,
+            "standard" => Self::Standard,
+            "optional" | _ => Self::Optional,
+        }
     }
 }
 
@@ -424,6 +477,7 @@ impl HashSums {
         }
     }
 
+    /// Get hashsums as a vector.
     #[must_use]
     pub fn as_vec(&self) -> Vec<Option<&str>> {
         self.sums.iter().map(Option::as_deref).collect::<Vec<_>>()
