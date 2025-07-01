@@ -89,6 +89,11 @@ impl SrcInfo {
         }
     }
 
+    /// How many children packages are there?
+    pub fn len(&self) -> usize {
+        self.packages.len()
+    }
+
     /// Parse a string into an [`SrcInfo`].
     pub fn parse(input: &str) -> IResult<&str, Self> {
         let (input, pairs) = many0(parse_key_value).parse(input)?;

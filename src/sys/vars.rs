@@ -58,6 +58,7 @@ impl PacstallVariables<'_> {
                 }.to_string()),
                 ("DISTRO", Self::distro().to_string()),
                 ("KVER", Self::kver()),
+                ("homedir", env::home_dir().expect("Could not get home dir for user").to_string_lossy().to_string()),
             ],
             sysinfo,
         }

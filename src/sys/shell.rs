@@ -28,7 +28,6 @@ impl PacstallShell {
 
         shell.register_builtin("fancy_message", simple_builtin::<FancyMessage>());
 
-        // TODO: Add `homedir` $ (misc/scripts/package-base.sh:238).
         // TODO: Add `pacfile` $ (misc/scripts/package-base.sh:244).
         // TODO: Add `CDISTRO` $ (misc/scripts/package-base.sh:253).
         for (name, output) in PacstallVariables::generate() {

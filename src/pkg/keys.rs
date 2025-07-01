@@ -1,5 +1,8 @@
 use core::fmt;
-use std::{cmp::Ordering, fmt::Display, path::PathBuf, str::FromStr};
+use std::{
+    cmp::Ordering, convert::Infallible, fmt::Display, ops::Deref, path::PathBuf, str::FromStr,
+    sync::OnceLock,
+};
 
 use debversion::Version;
 use etc_os_release::OsRelease;
@@ -260,6 +263,138 @@ pub struct OptDescription {
     desc: Option<String>,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+enum PackageKind {
+    Source,
+    Deb,
+    Git,
+    AppImage,
+    Binary,
+}
+
+/// Pattern-matchable package type.
+///
+/// This can and should be used exactly like a [`String`] in 99% of cases.
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[non_exhaustive]
+pub enum PackageType {
+    /// A source package that has no suffix. Usually builds from source tarball.
+    Source(String),
+    /// A deb package.
+    Deb(String),
+    /// A rolling package with no locked version.
+    Git(String),
+    /// An appimage.
+    AppImage(String),
+    /// A binary package.
+    Binary(String),
+
+    #[doc(hidden)]
+    Cached {
+        base: String,
+        full: OnceLock<String>,
+        kind: PackageKind,
+    },
+}
+
+impl Display for PackageType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl FromStr for PackageType {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        for (suffix, kind) in [
+            ("-deb", PackageKind::Deb),
+            ("-git", PackageKind::Git),
+            ("-app", PackageKind::AppImage),
+            ("-bin", PackageKind::Binary),
+        ] {
+            if let Some(name) = s.strip_suffix(suffix) {
+                return Ok(PackageType::from_parts(name.to_owned(), kind));
+            }
+        }
+
+        Ok(PackageType::Source(s.to_owned()))
+    }
+}
+
+impl PackageType {
+    const fn from_parts(base: String, kind: PackageKind) -> Self {
+        PackageType::Cached {
+            base,
+            full: OnceLock::new(),
+            kind,
+        }
+    }
+
+    /// Get package name as a string.
+    pub fn as_str(&self) -> &str {
+        match self {
+            PackageType::Source(s) => s.as_str(),
+            PackageType::Deb(s) => s.as_str(),
+            PackageType::Git(s) => s.as_str(),
+            PackageType::AppImage(s) => s.as_str(),
+            PackageType::Binary(s) => s.as_str(),
+
+            PackageType::Cached { base, full, kind } => full.get_or_init(|| match kind {
+                PackageKind::Source => base.clone(),
+                PackageKind::Deb => format!("{base}-deb"),
+                PackageKind::Git => format!("{base}-git"),
+                PackageKind::AppImage => format!("{base}-app"),
+                PackageKind::Binary => format!("{base}-bin"),
+            }),
+        }
+    }
+}
+
+impl AsRef<str> for PackageType {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl Deref for PackageType {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.as_str()
+    }
+}
+
+impl PartialEq<str> for PackageType {
+    fn eq(&self, other: &str) -> bool {
+        self.as_str() == other
+    }
+}
+
+impl PartialEq<&str> for PackageType {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
+impl PartialEq<PackageType> for str {
+    fn eq(&self, other: &PackageType) -> bool {
+        self == other.as_str()
+    }
+}
+
+impl PartialEq<String> for PackageType {
+    fn eq(&self, other: &String) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl PartialEq<PackageType> for String {
+    fn eq(&self, other: &PackageType) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
 impl Display for OptDescription {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -312,6 +447,7 @@ impl Display for Priority {
 
 impl From<String> for Priority {
     fn from(value: String) -> Self {
+        #[allow(clippy::wildcard_in_or_patterns)]
         match value.to_lowercase().as_str() {
             "essential" => Self::Essential,
             "required" => Self::Required,
@@ -1008,6 +1144,13 @@ mod tests {
     #[should_panic]
     fn distroclamp_no_colon() {
         "*".parse::<DistroClamp>().unwrap();
+    }
+
+    #[test]
+    fn package_type() {
+        let my_pkg = "hello-app".parse::<PackageType>().unwrap();
+        assert_eq!(my_pkg, "hello-app");
+        assert!(matches!(my_pkg, PackageType::AppImage(_)));
     }
 
     #[test]
