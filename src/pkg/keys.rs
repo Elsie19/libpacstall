@@ -263,8 +263,9 @@ pub struct OptDescription {
     desc: Option<String>,
 }
 
+/// Type of package in [`PackageString`].
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
-enum PackageKind {
+pub enum PackageKind {
     Source,
     Deb,
     Git,
@@ -274,90 +275,139 @@ enum PackageKind {
 
 /// Pattern-matchable package type.
 ///
-/// This can and should be used exactly like a [`String`] in 99% of cases.
-#[derive(Debug, PartialEq, Eq, Clone)]
+/// This can and should be used exactly like a [`String`] in 99% of cases. You should never have to
+/// deal with the variants inside, and if that happens, it should be reported as a bug.
+#[derive(Debug, Eq, Clone)]
 #[non_exhaustive]
-pub enum PackageType {
+pub enum PackageString {
     /// A source package that has no suffix. Usually builds from source tarball.
-    Source(String),
+    Source(String, OnceLock<String>),
     /// A deb package.
-    Deb(String),
+    Deb(String, OnceLock<String>),
     /// A rolling package with no locked version.
-    Git(String),
+    Git(String, OnceLock<String>),
     /// An appimage.
-    AppImage(String),
+    AppImage(String, OnceLock<String>),
     /// A binary package.
-    Binary(String),
-
-    #[doc(hidden)]
-    Cached {
-        base: String,
-        full: OnceLock<String>,
-        kind: PackageKind,
-    },
+    Binary(String, OnceLock<String>),
 }
 
-impl Display for PackageType {
+impl Display for PackageKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                PackageKind::Source => "",
+                PackageKind::Deb => "deb",
+                PackageKind::Git => "git",
+                PackageKind::AppImage => "app",
+                PackageKind::Binary => "bin",
+            }
+        )
+    }
+}
+
+impl Default for PackageString {
+    fn default() -> Self {
+        Self::Source(String::default(), OnceLock::default())
+    }
+}
+
+impl Display for PackageString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
     }
 }
 
-impl FromStr for PackageType {
+impl FromStr for PackageString {
     type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        for (suffix, kind) in [
-            ("-deb", PackageKind::Deb),
-            ("-git", PackageKind::Git),
-            ("-app", PackageKind::AppImage),
-            ("-bin", PackageKind::Binary),
+        for (suffix, variant) in [
+            ("-deb", PackageString::deb as fn(String) -> PackageString),
+            ("-git", PackageString::git),
+            ("-app", PackageString::appimage),
+            ("-bin", PackageString::binary),
         ] {
             if let Some(name) = s.strip_suffix(suffix) {
-                return Ok(PackageType::from_parts(name.to_owned(), kind));
+                return Ok(variant(name.to_string()));
             }
         }
 
-        Ok(PackageType::Source(s.to_owned()))
+        Ok(PackageString::source(s.to_string()))
     }
 }
 
-impl PackageType {
-    const fn from_parts(base: String, kind: PackageKind) -> Self {
-        PackageType::Cached {
-            base,
-            full: OnceLock::new(),
-            kind,
-        }
+impl<T: Into<String>> From<T> for PackageString {
+    fn from(value: T) -> Self {
+        Self::from_str(&value.into()).expect("Infallable conversion failed")
+    }
+}
+
+impl PackageString {
+    fn lock() -> OnceLock<String> {
+        OnceLock::new()
+    }
+
+    fn source(s: String) -> Self {
+        Self::Source(s, Self::lock())
+    }
+
+    fn deb(s: String) -> Self {
+        Self::Deb(s, Self::lock())
+    }
+
+    fn git(s: String) -> Self {
+        Self::Git(s, Self::lock())
+    }
+
+    fn appimage(s: String) -> Self {
+        Self::AppImage(s, Self::lock())
+    }
+
+    fn binary(s: String) -> Self {
+        Self::Binary(s, Self::lock())
     }
 
     /// Get package name as a string.
     pub fn as_str(&self) -> &str {
         match self {
-            PackageType::Source(s) => s.as_str(),
-            PackageType::Deb(s) => s.as_str(),
-            PackageType::Git(s) => s.as_str(),
-            PackageType::AppImage(s) => s.as_str(),
-            PackageType::Binary(s) => s.as_str(),
+            Self::Source(s, cache) => cache.get_or_init(|| s.clone()),
+            Self::Deb(s, cache) => cache.get_or_init(|| format!("{s}-deb")),
+            Self::Git(s, cache) => cache.get_or_init(|| format!("{s}-git")),
+            Self::AppImage(s, cache) => cache.get_or_init(|| format!("{s}-app")),
+            Self::Binary(s, cache) => cache.get_or_init(|| format!("{s}-bin")),
+        }
+    }
 
-            PackageType::Cached { base, full, kind } => full.get_or_init(|| match kind {
-                PackageKind::Source => base.clone(),
-                PackageKind::Deb => format!("{base}-deb"),
-                PackageKind::Git => format!("{base}-git"),
-                PackageKind::AppImage => format!("{base}-app"),
-                PackageKind::Binary => format!("{base}-bin"),
-            }),
+    /// Split string into component parts.
+    ///
+    /// # Examples
+    /// ```
+    /// # use libpacstall::pkg::keys::{PackageString, PackageKind};
+    /// let my_pkg = "neofetch-git".parse::<PackageString>()?;
+    /// assert_eq!(my_pkg.split(), ("neofetch", PackageKind::Git));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn split(&self) -> (&str, PackageKind) {
+        match self {
+            PackageString::Source(s, _) => (s, PackageKind::Source),
+            PackageString::Deb(s, _) => (s, PackageKind::Deb),
+            PackageString::Git(s, _) => (s, PackageKind::Git),
+            PackageString::AppImage(s, _) => (s, PackageKind::AppImage),
+            PackageString::Binary(s, _) => (s, PackageKind::Binary),
         }
     }
 }
 
-impl AsRef<str> for PackageType {
+impl AsRef<str> for PackageString {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
-impl Deref for PackageType {
+impl Deref for PackageString {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
@@ -365,32 +415,26 @@ impl Deref for PackageType {
     }
 }
 
-impl PartialEq<str> for PackageType {
+impl PartialEq<str> for PackageString {
     fn eq(&self, other: &str) -> bool {
         self.as_str() == other
     }
 }
 
-impl PartialEq<&str> for PackageType {
-    fn eq(&self, other: &&str) -> bool {
-        self.as_str() == *other
+impl<T: AsRef<str>> PartialEq<T> for PackageString {
+    fn eq(&self, other: &T) -> bool {
+        self.as_str() == other.as_ref()
     }
 }
 
-impl PartialEq<PackageType> for str {
-    fn eq(&self, other: &PackageType) -> bool {
+impl PartialEq<PackageString> for str {
+    fn eq(&self, other: &PackageString) -> bool {
         self == other.as_str()
     }
 }
 
-impl PartialEq<String> for PackageType {
-    fn eq(&self, other: &String) -> bool {
-        self.as_str() == other.as_str()
-    }
-}
-
-impl PartialEq<PackageType> for String {
-    fn eq(&self, other: &PackageType) -> bool {
+impl PartialEq<PackageString> for String {
+    fn eq(&self, other: &PackageString) -> bool {
         self.as_str() == other.as_str()
     }
 }
@@ -1148,9 +1192,9 @@ mod tests {
 
     #[test]
     fn package_type() {
-        let my_pkg = "hello-app".parse::<PackageType>().unwrap();
+        let my_pkg = "hello-app".parse::<PackageString>().unwrap();
         assert_eq!(my_pkg, "hello-app");
-        assert!(matches!(my_pkg, PackageType::AppImage(_)));
+        assert!(matches!(my_pkg, PackageString::AppImage(..)));
     }
 
     #[test]

@@ -9,7 +9,7 @@ use nom::{
     sequence::preceded,
 };
 
-use crate::pkg::keys::{Arch, DistroClamp, Maintainer, Priority};
+use crate::pkg::keys::{Arch, DistroClamp, Maintainer, PackageString, Priority};
 
 /// A representation of an `.SRCINFO` file.
 #[derive(Debug, Default)]
@@ -53,7 +53,7 @@ pub struct ArchDistro {
 /// Keys paired with a specific package.
 #[derive(Debug, Default, Clone)]
 pub struct PkgInfo {
-    pub pkgname: String,
+    pub pkgname: PackageString,
     pub pkgdesc: String,
     pub url: String,
     pub priority: Priority,
@@ -165,7 +165,7 @@ impl SrcInfo {
                         srcinfo.packages.push(pkg);
                     }
                     current_pkg = Some(global.clone());
-                    set!(pkgname &= value);
+                    set!(pkgname &= value.parse().expect("Infallable conversion failed"));
                 }
 
                 "pkgdesc" => set!(pkgdesc &= value),
