@@ -1,5 +1,6 @@
 use core::fmt;
 use std::{
+    borrow::Borrow,
     cmp::Ordering,
     convert::Infallible,
     fmt::{Debug, Display},
@@ -797,9 +798,9 @@ impl Display for Arch {
 }
 
 /// See [`Arch::compatible`] for more information.
-impl PartialEq<ArchDistro> for Arch {
-    fn eq(&self, other: &ArchDistro) -> bool {
-        match other.arch {
+impl<T: Borrow<ArchDistro>> PartialEq<T> for Arch {
+    fn eq(&self, other: &T) -> bool {
+        match other.borrow().arch {
             Some(ref other_arch) => self.compatible(other_arch),
             None => true,
         }
@@ -945,8 +946,9 @@ impl FromStr for DistroClamp {
     }
 }
 
-impl PartialEq<&ArchDistro> for DistroClamp {
-    fn eq(&self, other: &&ArchDistro) -> bool {
+impl<T: Borrow<ArchDistro>> PartialEq<T> for DistroClamp {
+    fn eq(&self, other: &T) -> bool {
+        let other = other.borrow();
         // ArchDistro's distro is Option<String>, so get string or "*" if None
         let other_distro = other.distro.as_deref().unwrap_or("*");
         // ArchDistro has no explicit version, so reuse distro as version fallback
@@ -1023,6 +1025,11 @@ impl DistroClamp {
     #[must_use]
     pub fn version(&self) -> &str {
         &self.version
+    }
+
+    /// Check the structural equality of two clamps.
+    pub fn lit_eq(&self, other: &Self) -> bool {
+        self.distro == other.distro && self.version == other.version
     }
 
     /// Get running system's [`DistroClamp`].
