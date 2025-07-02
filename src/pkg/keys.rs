@@ -110,6 +110,7 @@ pub enum DistroClampError {
 /// let my_same_archs = vec![Arch::Amd64, Arch::I386];
 /// assert!(my_same_archs.iter().allowed());
 /// ```
+#[non_exhaustive]
 #[derive(Debug, PartialEq, Eq, Clone, Hash, EnumIter)]
 pub enum Arch {
     /// Package can be compiled on *any* system, but will only run on the compiled architecture.
@@ -121,7 +122,6 @@ pub enum Arch {
     Armel,
     Armhf,
     I386,
-    Mips64el,
     Ppc64el,
     Riscv64,
     S390x,
@@ -755,7 +755,6 @@ impl From<String> for Arch {
             "armel" => Arch::Armel,
             "armhf" => Arch::Armhf,
             "i386" => Arch::I386,
-            "mips64el" => Arch::Mips64el,
             "ppc64el" => Arch::Ppc64el,
             "riscv64" => Arch::Riscv64,
             "s390x" => Arch::S390x,
@@ -782,7 +781,6 @@ impl Display for Arch {
                 Arch::Armel => "armel",
                 Arch::Armhf => "armhf",
                 Arch::I386 => "i386",
-                Arch::Mips64el => "mips64el",
                 Arch::Ppc64el => "ppc64el",
                 Arch::Riscv64 => "riscv64",
                 Arch::S390x => "s390x",
@@ -825,7 +823,6 @@ impl Arch {
             "x86_64" => Self::Amd64,
             "arm" => Self::Armel,
             "aarch64" => Self::Arm64,
-            "mips64" | "mips64r6" => Self::Mips64el,
             "powerpc64" => Self::Ppc64el,
             "riscv64" => Self::Riscv64,
             "s390x" => Self::S390x,
