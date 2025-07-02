@@ -1,6 +1,12 @@
 use core::fmt;
 use std::{
-    cmp::Ordering, convert::Infallible, fmt::Display, ops::Deref, path::PathBuf, str::FromStr,
+    cmp::Ordering,
+    convert::Infallible,
+    fmt::{Debug, Display},
+    hash::Hash,
+    ops::Deref,
+    path::PathBuf,
+    str::FromStr,
     sync::OnceLock,
 };
 
@@ -10,6 +16,8 @@ use serde::Deserialize;
 use strum_macros::EnumIter;
 use thiserror::Error;
 use url::Url;
+
+use crate::srcinfo::ArchDistro;
 
 /// Distro clamping, useful in `incompatible`/`compatible`.
 ///
@@ -206,7 +214,7 @@ pub struct HashSums {
 }
 
 /// Type of sum used.
-#[derive(PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum HashSumType {
     Sha256,
     Sha512,
@@ -277,7 +285,7 @@ pub enum PackageKind {
 ///
 /// This can and should be used exactly like a [`String`] in 99% of cases. You should never have to
 /// deal with the variants inside, and if that happens, it should be reported as a bug.
-#[derive(Debug, Eq, Clone)]
+#[derive(Eq, Clone)]
 #[non_exhaustive]
 pub enum PackageString {
     /// A source package that has no suffix. Usually builds from source tarball.
@@ -290,6 +298,34 @@ pub enum PackageString {
     AppImage(String, OnceLock<String>),
     /// A binary package.
     Binary(String, OnceLock<String>),
+}
+
+impl Debug for PackageString {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fmt::Debug::fmt(
+            match self {
+                PackageString::Source(s, _)
+                | PackageString::Deb(s, _)
+                | PackageString::Git(s, _)
+                | PackageString::AppImage(s, _)
+                | PackageString::Binary(s, _) => s,
+            },
+            f,
+        )
+    }
+}
+
+impl HashSumType {
+    pub const fn size(&self) -> usize {
+        match self {
+            HashSumType::B2 | HashSumType::Sha512 => 128,
+            HashSumType::Sha384 => 96,
+            HashSumType::Sha256 => 64,
+            HashSumType::Sha224 => 56,
+            HashSumType::Sha1 => 40,
+            HashSumType::Md5 => 32,
+        }
+    }
 }
 
 impl Display for PackageKind {
@@ -760,6 +796,16 @@ impl Display for Arch {
     }
 }
 
+/// See [`Arch::compatible`] for more information.
+impl PartialEq<ArchDistro> for Arch {
+    fn eq(&self, other: &ArchDistro) -> bool {
+        match other.arch {
+            Some(ref other_arch) => self.compatible(other_arch),
+            None => true,
+        }
+    }
+}
+
 impl Arch {
     /// Check if an [`Arch`] is an Arch Linux style architecture or a Debian style.
     #[must_use]
@@ -899,6 +945,21 @@ impl FromStr for DistroClamp {
     }
 }
 
+impl PartialEq<&ArchDistro> for DistroClamp {
+    fn eq(&self, other: &&ArchDistro) -> bool {
+        // ArchDistro's distro is Option<String>, so get string or "*" if None
+        let other_distro = other.distro.as_deref().unwrap_or("*");
+        // ArchDistro has no explicit version, so reuse distro as version fallback
+        let other_version = other.distro.as_deref().unwrap_or("*");
+
+        if self.basic_match(other_distro, other_version) {
+            true
+        } else {
+            self.nuanced_match(other_distro, other_version)
+        }
+    }
+}
+
 /// The rules are as such:
 ///
 /// * `*:ver` == `any:ver`
@@ -909,72 +970,13 @@ impl FromStr for DistroClamp {
 /// [`DistroClamp::system`]).
 impl PartialEq for DistroClamp {
     fn eq(&self, other: &Self) -> bool {
-        let basic_match = if self.distro == other.distro {
-            match (self.version.as_str(), other.version.as_str()) {
-                (_, "*") | ("*", _) => true,
-                (ver, other_ver) => ver == other_ver,
-            }
-        } else {
-            match (self.distro.as_str(), other.distro.as_str()) {
-                (_, "*") | ("*", _) => true,
-                (ver, other_ver) => ver == other_ver,
-            }
-        };
+        let other_distro = other.distro.as_str();
+        let other_version = other.version.as_str();
 
-        if basic_match {
+        if self.basic_match(other_distro, other_version) {
             true
         } else {
-            // These are the nuanced checks.
-            match (&self.os_release, &self.info) {
-                (Some(os), Some(info)) => {
-                    let extra = Self::generate_extra(os, info);
-
-                    let self_clamp = if let Some(ref parent) = extra.distro_parent {
-                        &DistroClamp::new(
-                            parent,
-                            &extra
-                                .distro_parent_vname
-                                .clone()
-                                .unwrap_or_else(|| extra.distro_version_name.to_string()),
-                        )
-                        .unwrap()
-                    } else {
-                        self
-                    };
-
-                    if other.distro == "*" {
-                        other.version == extra.distro_version_number
-                            || other.version == extra.distro_version_name
-                            || other.version == extra.distro_parent_vname.unwrap_or_default()
-                    } else if other.version == "*" {
-                        other.distro == extra.distro_name
-                            || Some(other.distro.clone()) == extra.distro_parent
-                    } else {
-                        self_clamp
-                            == &DistroClamp::new(
-                                extra.distro_name.clone(),
-                                extra.distro_version_name,
-                            )
-                            .unwrap()
-                            || self_clamp
-                                == &DistroClamp::new(extra.distro_name, extra.distro_version_number)
-                                    .unwrap()
-                            || self_clamp
-                                == &DistroClamp::new(
-                                    extra.distro_parent.clone().unwrap_or_default(),
-                                    extra.distro_parent_vname.unwrap_or_default(),
-                                )
-                                .unwrap()
-                            || self_clamp
-                                == &DistroClamp::new(
-                                    extra.distro_parent.unwrap_or_default(),
-                                    extra.distro_parent_number.unwrap_or_default(),
-                                )
-                                .unwrap()
-                    }
-                }
-                _ => basic_match,
-            }
+            self.nuanced_match(other_distro, other_version)
         }
     }
 }
@@ -1056,6 +1058,72 @@ impl DistroClamp {
                     .collect::<Result<Vec<DistroCSV>, csv::Error>>()?
             }),
         })
+    }
+
+    /// Basic match of distro and version strings, with wildcards.
+    fn basic_match(&self, other_distro: &str, other_version: &str) -> bool {
+        if self.distro == other_distro {
+            match (self.version.as_str(), other_version) {
+                (_, "*") | ("*", _) => true,
+                (ver, other_ver) => ver == other_ver,
+            }
+        } else {
+            match (self.distro.as_str(), other_distro) {
+                (_, "*") | ("*", _) => true,
+                (ver, other_ver) => ver == other_ver,
+            }
+        }
+    }
+
+    /// The nuanced check with extra info, accepting distro/version strings.
+    fn nuanced_match(&self, other_distro: &str, other_version: &str) -> bool {
+        match (&self.os_release, &self.info) {
+            (Some(os), Some(info)) => {
+                let extra = Self::generate_extra(os, info);
+
+                let self_clamp = if let Some(ref parent) = extra.distro_parent {
+                    &DistroClamp::new(
+                        parent,
+                        &extra
+                            .distro_parent_vname
+                            .clone()
+                            .unwrap_or_else(|| extra.distro_version_name.to_string()),
+                    )
+                    .unwrap()
+                } else {
+                    self
+                };
+
+                if other_distro == "*" {
+                    other_version == extra.distro_version_number
+                        || other_version == extra.distro_version_name
+                        || other_version == extra.distro_parent_vname.clone().unwrap_or_default()
+                } else if other_version == "*" {
+                    other_distro == extra.distro_name
+                        || Some(other_distro.to_string()) == extra.distro_parent
+                } else {
+                    self_clamp
+                        == &DistroClamp::new(extra.distro_name.clone(), extra.distro_version_name)
+                            .unwrap()
+                        || self_clamp
+                            == &DistroClamp::new(extra.distro_name, extra.distro_version_number)
+                                .unwrap()
+                        || self_clamp
+                            == &DistroClamp::new(
+                                extra.distro_parent.clone().unwrap_or_default(),
+                                extra.distro_parent_vname.clone().unwrap_or_default(),
+                            )
+                            .unwrap()
+                        || self_clamp
+                            == &DistroClamp::new(
+                                extra.distro_parent.unwrap_or_default(),
+                                extra.distro_parent_number.unwrap_or_default(),
+                            )
+                            .unwrap()
+                }
+            }
+            _ => false,
+        }
     }
 
     fn generate_extra(os: &OsRelease, info: &[DistroCSV]) -> DistroClampExtra {

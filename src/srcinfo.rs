@@ -1,5 +1,7 @@
 // Created originally by <https://github.com/D-Brox>.
 
+use std::fmt::Display;
+
 use nom::{
     IResult, Parser,
     bytes::complete::{tag, take_until, take_until1, take_while1},
@@ -21,7 +23,8 @@ pub struct SrcInfo {
 /// Keys paired to a global package.
 #[derive(Debug, Default, Clone)]
 pub struct PkgBase {
-    pub pkgbase: String,
+    pub pkgbase: PackageString,
+    pub pkgdesc: String,
     pub pkgver: String,
     pub pkgrel: usize,
     pub epoch: usize,
@@ -44,10 +47,32 @@ pub struct PkgBase {
 }
 
 /// An architecture and a distro, usually paired in a tuple with a key.
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct ArchDistro {
     pub arch: Option<Arch>,
     pub distro: Option<String>,
+}
+
+impl Display for ArchDistro {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match (&self.distro, &self.arch) {
+                (None, None) => String::new(),
+                (None, Some(arch)) => format!("{arch}"),
+                (Some(distro), None) => distro.to_string(),
+                (Some(distro), Some(arch)) => format!("{distro}_{arch}"),
+            }
+        )
+    }
+}
+
+impl ArchDistro {
+    /// Check whether this is an enhanced variant in any capacity.
+    pub const fn is_enhanced(&self) -> bool {
+        self.arch.is_some() || self.distro.is_some()
+    }
 }
 
 /// Keys paired with a specific package.
@@ -94,6 +119,18 @@ impl SrcInfo {
         self.packages.len()
     }
 
+    /// Check if a given package is a child package.
+    ///
+    /// Returns `true` if it is, `false` if not. `false` may indicate that it is the singular
+    /// package as well, so be careful not to make typos.
+    pub fn is_child(&self, pkg: &PackageString) -> bool {
+        self.packages.iter().any(|child| child.pkgname == pkg)
+    }
+
+    pub fn is_parent(&self, pkg: &PackageString) -> bool {
+        self.pkgbase.pkgbase == pkg
+    }
+
     /// Parse a string into an [`SrcInfo`].
     pub fn parse(input: &str) -> IResult<&str, Self> {
         let (input, pairs) = many0(parse_key_value).parse(input)?;
@@ -128,7 +165,7 @@ impl SrcInfo {
             let (base_key, arch_distro) = split_key_arch(&global.arch, &key);
 
             match base_key.as_str() {
-                "pkgbase" => set!(pkgbase = value),
+                "pkgbase" => set!(pkgbase = value.into()),
                 "pkgver" => set!(pkgver = value),
                 "pkgrel" => {
                     set!(pkgrel = value.parse::<usize>().expect("Could not convert to usize"))
@@ -176,18 +213,18 @@ impl SrcInfo {
                 "backup" => set!(backup &+ value),
                 "repology" => set!(repology &+ value),
 
-                "gives" => set!(gives &+ (arch_distro,value)),
-                "depends" => set!(depends &+ (arch_distro,value)),
-                "checkdepends" => set!(checkdepends &+ (arch_distro,value)),
-                "optdepends" => set!(optdepends &+ (arch_distro,value)),
-                "checkconflicts" => set!(checkconflicts &+ (arch_distro,value)),
-                "conflicts" => set!(conflicts &+ (arch_distro,value)),
-                "provides" => set!(provides &+ (arch_distro,value)),
-                "breaks" => set!(breaks &+ (arch_distro,value)),
-                "replaces" => set!(replaces &+ (arch_distro,value)),
-                "enhances" => set!(enhances &+ (arch_distro,value)),
-                "recommends" => set!(recommends &+ (arch_distro,value)),
-                "suggests" => set!(suggests &+ (arch_distro,value)),
+                "gives" => set!(gives &+ (arch_distro, value)),
+                "depends" => set!(depends &+ (arch_distro, value)),
+                "checkdepends" => set!(checkdepends &+ (arch_distro, value)),
+                "optdepends" => set!(optdepends &+ (arch_distro, value)),
+                "checkconflicts" => set!(checkconflicts &+ (arch_distro, value)),
+                "conflicts" => set!(conflicts &+ (arch_distro, value)),
+                "provides" => set!(provides &+ (arch_distro, value)),
+                "breaks" => set!(breaks &+ (arch_distro, value)),
+                "replaces" => set!(replaces &+ (arch_distro, value)),
+                "enhances" => set!(enhances &+ (arch_distro, value)),
+                "recommends" => set!(recommends &+ (arch_distro, value)),
+                "suggests" => set!(suggests &+ (arch_distro, value)),
 
                 _ => {}
             }
