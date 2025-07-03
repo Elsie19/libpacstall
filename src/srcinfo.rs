@@ -29,6 +29,7 @@ pub struct PkgBase {
     pub pkgrel: usize,
     pub epoch: usize,
     pub mask: Vec<String>,
+    pub kver: Option<String>,
     pub compatible: Vec<DistroClamp>,
     pub incompatible: Vec<DistroClamp>,
     pub maintainer: Vec<Maintainer>,
@@ -174,6 +175,7 @@ impl SrcInfo {
                     set!(epoch = value.parse::<usize>().expect("Could not convert to usize"))
                 }
                 "mask" => set!(mask + value),
+                "kver" => set!(kver = Some(value)),
                 "compatible" => {
                     set!(compatible + value.parse().expect("Could not convert to distroclamp"))
                 }
