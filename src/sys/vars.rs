@@ -51,14 +51,31 @@ impl PacstallVariables<'_> {
             vars: vec![
                 ("NCPU", Self::ncpu(&sysinfo).to_string()),
                 ("CARCH", Self::carch().to_string()),
-                ("AARCH", match Self::carch() {
-                    Arch::Armhf => Arch::Armv7h,
-                    Arch::I386 => Arch::I686,
-                    default => default,
-                }.to_string()),
+                (
+                    "AARCH",
+                    match Self::carch() {
+                        Arch::Armhf => Arch::Armv7h,
+                        Arch::I386 => Arch::I686,
+                        default => default,
+                    }
+                    .to_string(),
+                ),
                 ("DISTRO", Self::distro().to_string()),
                 ("KVER", Self::kver()),
-                ("homedir", env::home_dir().expect("Could not get home dir for user").to_string_lossy().to_string()),
+                (
+                    "homedir",
+                    env::home_dir()
+                        .expect("Could not get home dir for user")
+                        .to_string_lossy()
+                        .to_string(),
+                ),
+                (
+                    "DIR",
+                    env::current_dir()
+                        .expect("Could not get CWD")
+                        .to_string_lossy()
+                        .to_string(),
+                ),
             ],
             sysinfo,
         }
