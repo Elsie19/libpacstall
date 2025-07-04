@@ -1,3 +1,15 @@
+<p align="center">
+  <a href="https://github.com/Elsie19/libpacstall/actions?query=branch%3Amaster">
+    <img src="https://img.shields.io/github/actions/workflow/status/Elsie19/libpacstall/rust.yml?branch=master" alt="Build Status" />
+  </a>
+  <a href="https://crates.io/crates/libpacstall" target="_blank">
+    <img src="https://img.shields.io/crates/v/libpacstall.svg" alt="Latest Version" />
+  </a>
+  <a href="https://docs.rs/libpacstall/" target="_blank">
+    <img src="https://img.shields.io/docsrs/libpacstall?label=libpacstall%20docs" alt="libpacstall docs" />
+  </a>
+</p>
+
 <p align="center"><b>LIBPACSTALL</b></p>
 <p align="center">
 <a href="https://github.com/pacstall/pacstall"><img align="center" src="https://raw.githubusercontent.com/pacstall/website/master/client/public/pacstall.svg" width="200" height="200" alt="Pacstall Logo"></a>
