@@ -1,4 +1,4 @@
-<p align="center"><h3>LIBPACSTALL</h3></p>
+<p align="center"><b>LIBPACSTALL</b></p>
 <p align="center">
 <a href="https://github.com/pacstall/pacstall"><img align="center" src="https://raw.githubusercontent.com/pacstall/website/master/client/public/pacstall.svg" width="200" height="200" alt="Pacstall Logo"></a>
 </p>
